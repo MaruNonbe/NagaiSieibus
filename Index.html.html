@@ -1,0 +1,839 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>長井バス乗換案内</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&display=swap">
+<style>
+/* Layout: 1カラムのスマホ優先。上に検索、下に結果。路線色は市営バスの案内図と同じ5色。 */
+:root {
+  --bg: #F3F5F1;
+  --surface: #FFFFFF;
+  --surface-2: #E9EEE8;
+  --fg: #17211C;
+  --muted: #55645C;
+  --line: #D3DAD1;
+  --accent: #0E6B58;
+  --accent-fg: #FFFFFF;
+  --accent-soft: #DCEEE8;
+  --warn-bg: #FFF1D6;
+  --warn-fg: #6B4300;
+  --warn-line: #E8C581;
+  --hub-red: #C9202C;
+  --hub-blue: #0B4FA8;
+  --hub-fg: #FFFFFF;
+  --r-nishine: #B85A00;
+  --r-chihou: #6B46A0;
+  --r-hirano: #2B7A31;
+  --r-isawa: #BE2C77;
+  --r-toyoda: #1262B8;
+  --font: "BIZ UDPGothic", "Hiragino Sans", "Yu Gothic", "Meiryo", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #101612; --surface: #19211C; --surface-2: #232E27; --fg: #E8EEE9; --muted: #A2B1A8; --line: #33423A;
+    --accent: #5CC9AC; --accent-fg: #07241C; --accent-soft: #1B3A31;
+    --warn-bg: #3A2C10; --warn-fg: #F5D79B; --warn-line: #6B531F;
+    --hub-red: #E8545E; --hub-blue: #5B9BEA; --hub-fg: #0B0F0D;
+    --r-nishine: #D9792A; --r-chihou: #9A78CC; --r-hirano: #4FA656; --r-isawa: #DD5A9A; --r-toyoda: #4C95E0;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #101612; --surface: #19211C; --surface-2: #232E27; --fg: #E8EEE9; --muted: #A2B1A8; --line: #33423A;
+  --accent: #5CC9AC; --accent-fg: #07241C; --accent-soft: #1B3A31;
+  --warn-bg: #3A2C10; --warn-fg: #F5D79B; --warn-line: #6B531F;
+  --hub-red: #E8545E; --hub-blue: #5B9BEA; --hub-fg: #0B0F0D;
+  --r-nishine: #D9792A; --r-chihou: #9A78CC; --r-hirano: #4FA656; --r-isawa: #DD5A9A; --r-toyoda: #4C95E0;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font-family: var(--font); font-size: 17px; line-height: 1.6; }
+.wrap {
+  max-width: 720px; margin: 0 auto;
+  padding-block: 20px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+header h1 { font-size: 1.55rem; line-height: 1.3; margin: 0; text-wrap: balance; }
+header p { margin: 4px 0 0; color: var(--muted); font-size: .9rem; }
+.hubbar { display: flex; gap: 8px; margin: 14px 0 0; flex-wrap: wrap; }
+.hub { font-size: .82rem; font-weight: 700; color: var(--hub-fg); padding: 2px 10px; border-radius: 4px; }
+.hub.red { background: var(--hub-red); } .hub.blue { background: var(--hub-blue); }
+
+nav.tabs { display: flex; gap: 4px; margin: 18px 0 14px; border-bottom: 2px solid var(--line); }
+nav.tabs button {
+  flex: 1; min-height: 48px; font: inherit; font-weight: 700; color: var(--muted);
+  background: none; border: 0; border-bottom: 4px solid transparent; margin-bottom: -2px; cursor: pointer;
+}
+nav.tabs button[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); }
+button:focus-visible, input:focus-visible, summary:focus-visible, a:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
+.field { position: relative; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.field label { font-size: .85rem; font-weight: 700; color: var(--muted); }
+input[type="text"], input[type="date"], input[type="time"] {
+  font: inherit; min-height: 52px; padding: 8px 12px; width: 100%; min-width: 0;
+  color: var(--fg); background: var(--bg); border: 2px solid var(--line); border-radius: 8px;
+}
+input:focus { border-color: var(--accent); }
+.route-fields { display: grid; grid-template-columns: 1fr 52px; gap: 8px 10px; align-items: end; }
+.route-fields .stack { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.swap { min-height: 52px; width: 52px; font-size: 1.4rem; background: var(--surface-2); color: var(--fg); border: 2px solid var(--line); border-radius: 8px; cursor: pointer; align-self: center; }
+.dt { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
+.seg { display: grid; grid-template-columns: 1fr 1fr; margin-top: 12px; border: 2px solid var(--accent); border-radius: 8px; overflow: hidden; }
+.seg button { font: inherit; font-weight: 700; min-height: 46px; background: transparent; color: var(--accent); border: 0; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); }
+.go { margin-top: 14px; width: 100%; min-height: 56px; font: inherit; font-size: 1.1rem; font-weight: 700; background: var(--accent); color: var(--accent-fg); border: 0; border-radius: 8px; cursor: pointer; }
+.quick { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.quick button { font: inherit; font-size: .85rem; padding: 4px 10px; min-height: 34px; background: var(--surface-2); color: var(--fg); border: 1px solid var(--line); border-radius: 999px; cursor: pointer; }
+
+.suggest { position: absolute; top: 100%; left: 0; right: 0; z-index: 20; margin: 4px 0 0; padding: 4px; list-style: none; background: var(--surface); border: 2px solid var(--accent); border-radius: 8px; max-height: 300px; overflow-y: auto; box-shadow: 0 8px 24px rgb(0 0 0 / .18); }
+.suggest li { padding: 10px 10px; border-radius: 6px; cursor: pointer; display: flex; justify-content: space-between; gap: 8px; align-items: center; min-height: 46px; }
+.suggest li:hover, .suggest li[aria-selected="true"] { background: var(--accent-soft); }
+.suggest .rt { display: flex; gap: 3px; flex-shrink: 0; }
+.dot { width: 12px; height: 12px; border-radius: 50%; background: var(--rc); display: inline-block; }
+
+.notice { margin-top: 14px; padding: 12px 14px; background: var(--warn-bg); color: var(--warn-fg); border: 1px solid var(--warn-line); border-radius: 8px; font-size: .95rem; }
+.notice button { font: inherit; margin-top: 8px; padding: 6px 12px; min-height: 40px; background: var(--surface); color: var(--fg); border: 1px solid var(--warn-line); border-radius: 6px; cursor: pointer; font-weight: 700; }
+
+#results { margin-top: 18px; display: flex; flex-direction: column; gap: 14px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+.sum { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; }
+.times { font-size: 1.7rem; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: .01em; }
+.meta { color: var(--muted); font-size: .92rem; display: flex; flex-wrap: wrap; gap: 2px 12px; }
+.badge { font-size: .78rem; font-weight: 700; padding: 1px 8px; border-radius: 4px; background: var(--accent-soft); color: var(--accent); }
+.legs { margin-top: 10px; display: flex; flex-direction: column; }
+.leg { display: grid; grid-template-columns: 6px 1fr; gap: 12px; padding: 6px 0; }
+.leg .bar { background: var(--rc); border-radius: 3px; }
+.leg .body { min-width: 0; }
+.chip { display: inline-block; font-size: .85rem; font-weight: 700; color: #fff; background: var(--rc); padding: 1px 10px; border-radius: 4px; }
+.pt { display: flex; gap: 10px; align-items: baseline; margin-top: 4px; }
+.pt .tm { font-variant-numeric: tabular-nums; font-weight: 700; min-width: 3.4em; }
+.pt .nm { min-width: 0; overflow-wrap: anywhere; }
+.sub { color: var(--muted); font-size: .85rem; }
+details.via summary { cursor: pointer; color: var(--muted); font-size: .85rem; margin-top: 4px; min-height: 28px; }
+details.via ol { margin: 4px 0 0; padding-left: 1.4em; color: var(--muted); font-size: .85rem; columns: 2 180px; }
+.xfer { display: flex; align-items: center; gap: 8px; padding: 6px 0 6px 18px; font-size: .88rem; color: var(--muted); border-left: 2px dotted var(--line); margin-left: 2px; flex-wrap: wrap; }
+.xfer b { color: var(--fg); }
+.empty { padding: 18px; text-align: left; background: var(--surface); border: 1px dashed var(--line); border-radius: 10px; color: var(--muted); }
+.fine { color: var(--muted); font-size: .82rem; margin: 10px 2px 0; }
+
+.tt-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+.tt-head h2 { font-size: 1.1rem; margin: 0; }
+.tt-head button { font: inherit; font-size: .88rem; font-weight: 700; padding: 6px 12px; min-height: 40px; background: var(--accent-soft); color: var(--accent); border: 0; border-radius: 6px; cursor: pointer; }
+.tt { margin-top: 8px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.tt .row { display: grid; grid-template-columns: 4.2em auto 1fr; gap: 10px; align-items: center; padding: 9px 14px; border-top: 1px solid var(--line); }
+.tt .row:first-child { border-top: 0; }
+.tt .t { font-weight: 700; font-variant-numeric: tabular-nums; font-size: 1.1rem; }
+.tt .d { min-width: 0; overflow-wrap: anywhere; font-size: .95rem; }
+.info h2 { font-size: 1.05rem; margin: 20px 0 6px; }
+.info h2:first-child { margin-top: 0; }
+.info p, .info li { margin: 4px 0; font-size: .95rem; }
+.info ul { padding-left: 1.3em; margin: 4px 0; }
+.legend { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 6px 12px; margin-top: 8px; }
+.legend div { display: flex; align-items: center; gap: 8px; font-size: .92rem; }
+.themebtn { font: inherit; font-size: .85rem; margin-top: 10px; padding: 6px 12px; min-height: 40px; background: var(--surface-2); color: var(--fg); border: 1px solid var(--line); border-radius: 6px; cursor: pointer; }
+.r-nishine { --rc: var(--r-nishine); } .r-chihou { --rc: var(--r-chihou); } .r-hirano { --rc: var(--r-hirano); }
+.r-isawa { --rc: var(--r-isawa); } .r-toyoda { --rc: var(--r-toyoda); }
+@media (prefers-reduced-motion: no-preference) { .card { animation: up .25s ease-out; } @keyframes up { from { opacity: .0; transform: translateY(6px); } to { opacity: 1; transform: none; } } }
+@media (max-width: 420px) { .times { font-size: 1.5rem; } .dt { grid-template-columns: 1fr; } }
+
+/* 地図 */
+.mapbox { position: relative; height: min(calc(100vh - 28px), 600px); min-height: 360px; scroll-margin-top: 8px; margin: 10px 0 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--surface-2); touch-action: none; user-select: none; -webkit-user-select: none; }
+.mapbox .tiles { position: absolute; inset: 0; overflow: hidden; }
+.mapbox .tiles img { position: absolute; transform-origin: 0 0; max-width: none; }
+.mapbox svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.mapbox .mk { cursor: pointer; }
+.mapbox .lbl.sel { font-size: 14px; stroke-width: 5px; }
+.mapbox .lbl { font-size: 12px; fill: var(--fg); paint-order: stroke; stroke: var(--surface); stroke-width: 3.5px; stroke-linejoin: round; pointer-events: none; font-family: var(--font); font-weight: 700; }
+.mapctl { position: absolute; right: 10px; top: 10px; display: flex; flex-direction: column; gap: 6px; }
+.mapctl button { width: 44px; height: 44px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); font-size: 1.3rem; font-family: var(--font); cursor: pointer; }
+.mapctl button:focus-visible, .maplegend button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.mapnote { position: absolute; left: 8px; bottom: 6px; font-size: .72rem; color: var(--muted); background: color-mix(in srgb, var(--surface) 82%, transparent); padding: 1px 6px; border-radius: 4px; }
+.maplegend { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 0; }
+.mapbar { margin-top: 4px; }
+.maplegend button { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 2px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); font: inherit; font-size: .88rem; cursor: pointer; }
+.maplegend button[aria-pressed="false"] { opacity: .45; }
+.maplegend .dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+.mapbox .sheet { position: absolute; left: 8px; right: 8px; bottom: 8px; max-height: 56%; overflow: auto; margin: 0; box-shadow: 0 4px 18px rgba(0,0,0,.28); touch-action: pan-y; user-select: text; -webkit-user-select: text; }
+.sheet .x { position: absolute; right: 6px; top: 6px; width: 44px; height: 44px; border: 0; background: transparent; color: var(--fg); font-size: 1.5rem; cursor: pointer; }
+.sheet { margin: 12px 0 0; padding: 14px 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+.sheet h2 { margin: 0 0 4px; font-size: 1.15rem; }
+.sheet .acts { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 4px; }
+.sheet .acts button, .mapgps { min-height: 44px; padding: 6px 14px; border-radius: 8px; border: 1px solid var(--accent); background: var(--accent-soft); color: var(--fg); font: inherit; font-size: .95rem; font-weight: 700; cursor: pointer; }
+.sheet .dep { display: flex; gap: 10px; align-items: baseline; padding: 4px 0; border-top: 1px solid var(--line); font-size: .95rem; }
+.sheet .dep .t { font-weight: 700; font-variant-numeric: tabular-nums; min-width: 3.2em; }
+.mapbar { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; }
+.mapbar .field { flex: 1 1 220px; }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>長井市営バス 乗換案内</h1>
+    <p>西根・致芳・平野・伊佐沢・豊田の5路線。平日のみ運行、1日7便。</p>
+    <div class="hubbar"><span class="hub red">長井市役所・長井駅前</span><span class="hub blue">ヤマザワ前</span><span class="sub" style="align-self:center">この2か所で乗り換えます</span></div>
+  </header>
+
+  <nav class="tabs" role="tablist" aria-label="メニュー">
+    <button role="tab" id="tab-search" aria-selected="true" aria-controls="p-search">乗換検索</button>
+    <button role="tab" id="tab-tt" aria-selected="false" aria-controls="p-tt">停留所の時刻表</button>
+    <button role="tab" id="tab-map" aria-selected="false" aria-controls="p-map">地図</button>
+    <button role="tab" id="tab-info" aria-selected="false" aria-controls="p-info">ご利用案内</button>
+  </nav>
+
+  <section id="p-search" role="tabpanel" aria-labelledby="tab-search">
+    <form class="panel" id="form" autocomplete="off">
+      <div class="route-fields">
+        <div class="stack">
+          <div class="field"><label for="from">出発する停留所</label><input type="text" id="from" placeholder="例:里巻" role="combobox" aria-expanded="false" aria-controls="sg-from"><ul class="suggest" id="sg-from" role="listbox" hidden></ul></div>
+          <div class="field"><label for="to">到着する停留所</label><input type="text" id="to" placeholder="例:置賜総合病院前" role="combobox" aria-expanded="false" aria-controls="sg-to"><ul class="suggest" id="sg-to" role="listbox" hidden></ul></div>
+        </div>
+        <button type="button" class="swap" id="swap" aria-label="出発と到着を入れ替える">⇅</button>
+      </div>
+      <div class="quick" id="quick" aria-label="よく使う停留所"></div>
+      <div class="dt">
+        <div class="field"><label for="date">日付</label><input type="date" id="date"></div>
+        <div class="field"><label for="time">時刻</label><input type="time" id="time"></div>
+      </div>
+      <div class="seg" role="group" aria-label="時刻の指定"><button type="button" id="m-dep" aria-pressed="true">この時刻に出発</button><button type="button" id="m-arr" aria-pressed="false">この時刻までに到着</button></div>
+      <div id="notice" class="notice" hidden></div>
+      <button type="submit" class="go">検索する</button>
+    </form>
+    <div id="results" aria-live="polite"></div>
+    <p class="fine">運賃は目安です。区間をまたいだ乗り継ぎは、乗るたびに運賃がかかるものとして合計しています。</p>
+  </section>
+
+  <section id="p-tt" role="tabpanel" aria-labelledby="tab-tt" hidden>
+    <div class="panel">
+      <div class="field"><label for="ttstop">停留所を選ぶ</label><input type="text" id="ttstop" placeholder="例:長井市役所・長井駅前" role="combobox" aria-expanded="false" aria-controls="sg-tt"><ul class="suggest" id="sg-tt" role="listbox" hidden></ul></div>
+    </div>
+    <div class="tt-head"><h2 id="tttitle"></h2><button type="button" id="ttfrom">ここから出発で検索</button></div>
+    <div class="tt" id="ttlist"></div>
+    <p class="fine">行き先は、その便の終点です。平日(月〜金)のみ運行します。</p>
+  </section>
+
+  <section id="p-map" role="tabpanel" aria-labelledby="tab-map" hidden>
+    <div class="mapbar">
+      <div class="field"><label for="mapstop">停留所を探す</label><input type="text" id="mapstop" placeholder="例:里巻" role="combobox" aria-expanded="false" aria-controls="sg-map"><ul class="suggest" id="sg-map" role="listbox" hidden></ul></div>
+      <button type="button" class="mapgps" id="mapgps">現在地</button>
+    </div>
+    <div class="mapbox" id="mapbox">
+      <div class="tiles" id="maptiles"></div>
+      <svg id="mapsvg" role="img" aria-label="停留所の位置図。点をタップすると時刻を表示します"></svg>
+      <div class="mapctl"><button type="button" id="zin" aria-label="拡大">＋</button><button type="button" id="zout" aria-label="縮小">－</button><button type="button" id="zfit" aria-label="全体を表示">全</button></div>
+      <div class="mapnote" id="mapnote">背景地図を読み込み中…</div>
+      <div class="sheet" id="mapsheet" hidden></div>
+    </div>
+    <div class="maplegend" id="maplegend" role="group" aria-label="表示する路線"></div>
+    <p class="fine" id="mapfine"></p>
+  </section>
+
+  <section id="p-info" role="tabpanel" aria-labelledby="tab-info" hidden>
+    <div class="panel info">
+      <h2>このアプリについて</h2>
+      <p>長井市営バスの路線図・運賃表・時刻表(乗換案内)をもとに作った、個人制作の非公式アプリです。市や運行会社とは関係がありません。</p>
+      <h2>乗換のしくみ</h2>
+      <p>長井市役所・長井駅前とヤマザワ前では、各路線の車両が隣り合って停まり、そのまま乗り換えられます(停車は約5分)。このアプリは、この2か所での乗り換えを探します。</p>
+      <h2>路線の色</h2>
+      <div class="legend">
+        <div class="r-nishine"><span class="dot"></span>西根バス</div>
+        <div class="r-chihou"><span class="dot"></span>致芳バス</div>
+        <div class="r-hirano"><span class="dot"></span>平野バス</div>
+        <div class="r-isawa"><span class="dot"></span>伊佐沢バス</div>
+        <div class="r-toyoda"><span class="dot"></span>豊田バス</div>
+      </div>
+      <h2>ご注意</h2>
+      <ul>
+        <li>時刻は時刻表から手で転記したもので、間違いが残っている可能性があります。乗る前に、市の時刻表で確認してください。</li>
+        <li>運行は平日のみです。土日祝日、お盆、年末年始は運休です。祝日は2026年と2027年分だけ入っています。お盆は8月13〜16日として扱っています。</li>
+        <li>運賃は区間制(1区間100円、上限は路線ごとに300〜500円)をもとにした目安です。</li>
+        <li>停留所以外で乗り降りできる「フリー乗降区間」は、検索の対象外です。</li>
+        <li>伊佐沢バス1便の置賜総合病院行きは、時刻表に停留所ごとの時刻がないため、主な停留所だけを入れています。</li>
+        <li>時刻表の「● バス停側 / — 反対側」の待ち位置は、このアプリには入っていません。</li>
+      </ul>
+      <button type="button" class="themebtn" id="themebtn">表示を切り替える(明るい/暗い)</button>
+    </div>
+  </section>
+</div>
+
+<script>window.NAGAI_POS = {"ヤマザワ前":[38.090886,140.042472,7.2],"ホームセンタームサシ前":[38.091229,140.040527,11.3],"八文字屋長井店前":[38.091205,140.039018,4.6],"小出ヨークタウン前":[38.09111,140.038243,5.2],"長井警察署前":[38.092316,140.037065,5.8],"旧グランパリス前":[38.094692,140.03667,5.5],"長井高校南(頓珍館前)":[38.095705,140.038373,4.5],"ドコモショップ長井店前":[38.105013,140.043512,8.5],"旧長井小学校第一校舎前":[38.10734,140.042222,8.3],"長井郵便局前":[38.107095,140.040122,3.1],"栄町(中村循環器科医院前)":[38.107082,140.036822,7],"長井市役所・長井駅前":[38.106952,140.033921,8.6],"ファミリーマート中道店前":[38.108773,140.032422,7.1],"中道":[38.108771,140.03039,5.4],"幸町":[38.109676,140.027794,4.3],"谷地橋東南":[38.112584,140.027484,7.9],"谷地":[38.117366,140.022996,2.8],"中の目":[38.118133,140.015869,3.7],"福田十字路":[38.118575,140.008886,8.4],"平田":[38.110891,140.00786,8.8],"五祭所南":[38.110679,139.997571,4.7],"大沢":[38.113639,139.991849,8.7],"寺泉庵前":[38.107571,139.988492,4.7],"平泉橋北":[38.100508,139.98637,4.7],"上郷地区構造改善センター前":[38.105177,139.991802,4.7],"五祭所":[38.111305,139.998112,4.7],"上野":[38.11338,139.998348,4.7],"山岸十字路":[38.119274,139.999444,4.7],"白山森口":[38.125661,140.000669,3.4],"川原沢":[38.128132,140.002817,9.8],"川原沢中":[38.12873,140.006518,9],"西根農協前":[38.131901,140.008443,3.9],"中里(西根線)":[38.135219,140.009181,2.9],"草岡新町":[38.14198,140.012239,2.6],"戸根林口":[38.144493,140.013721,3.2],"仁府":[38.147707,140.015681,2.4],"岡十字路":[38.151388,140.020649,4.7],"勧進代中部公民館前":[38.15352,140.024407,13.7],"蔵京":[38.156782,140.027833,4.7],"白兎西集会所前":[38.159498,140.034592,4.7],"白兎中スクールバスのりば":[38.156562,140.038234,4.7],"白兎集会センター前":[38.155271,140.039944,4.7],"里巻":[38.155281,140.039933,4.7],"白つつじ公園北":[38.103101,140.042555,13.2],"荘内銀行長井支店東":[38.103128,140.039515,6.2],"やませ蔵":[38.102077,140.03816,7.8],"あら町(阿達医院前)":[38.100595,140.03805,7.6],"裁判所前":[38.098465,140.037926,7.2],"福田橋":[38.085128,140.041163,2.8],"時庭口":[38.080091,140.038759,3.9],"河井":[38.071521,140.047131,2.3],"八ヶ森自然公園口":[38.059534,140.054243,2.5],"県立やまなみ学園口":[38.056894,140.051188,6.3],"今泉第二公民館前":[38.055124,140.052403,3.2],"置賜総合病院前":[38.050567,140.0572,6],"桐舘構造改善センター前":[38.14163,140.017503,3.6],"大沖公民館":[38.131042,140.020622,3.4],"西館":[38.133693,140.035009,2.9],"八反田地蔵尊西":[38.133559,140.038207,2.8],"致芳小学校前":[38.134415,140.041104,3.5],"酒町":[38.137806,140.04203,11],"宮内":[38.140974,140.042603,8.3],"白兎東":[38.14997,140.044457,4.7],"袋地蔵前":[38.1462,140.044501,6.2],"致芳コミュニティセンター前":[38.134954,140.044067,6.8],"ローソン長井成田店前":[38.130437,140.043393,4.2],"羽前成田駅前角":[38.131002,140.035508,6.1],"羽前成田郵便局前":[38.129946,140.03913,5.2],"福蔵院前":[38.125431,140.038041,2.4],"芳野":[38.122486,140.037475,5.7],"卯の花温泉はぎ乃湯":[38.120238,140.033522,3],"うめや北店前":[38.119136,140.040625,8.6],"あかしあ橋南":[38.118347,140.042239,7.5],"アカシア通り(舟場)":[38.115563,140.042556,3.4],"屋城町":[38.110326,140.043097,4.3],"道の駅 川のみなと長井":[38.108698,140.043715,8.8],"調剤薬局前":[38.110405,140.039811,11.1],"長井病院前":[38.110981,140.040716,10.3],"薬王堂長井十日町店前":[38.113411,140.038978,4.7],"長井キープセンター前":[38.113482,140.036052,4.2],"あやめ公園前":[38.114933,140.034172,6.9],"はぎスタジオ前":[38.116212,140.037473,3.5],"あやっか前(十日町)":[38.112061,140.037957,6.5],"撞木橋":[38.109617,140.037804,8.3],"山形銀行前":[38.108277,140.037895,5.9],"遊びと学びの交流施設 くるんと前":[38.104885,140.035304,4],"本町商店街駐車場南":[38.10548,140.037476,8.1],"本町二丁目":[38.104077,140.038146,8.8],"鈴木歯科医院前":[38.100287,140.036191,5.7],"長井高校前(西口)":[38.098191,140.036314,9.3],"下伊佐沢":[38.069838,140.067964,2.7],"北原":[38.075025,140.068026,3.9],"中里":[38.080719,140.068513,2.3],"芦沢東":[38.086301,140.077683,3.1],"芦沢西":[38.086023,140.074526,8.9],"芦沢口":[38.084751,140.068701,2.4],"粡町十字路":[38.087209,140.067894,2.5],"西町":[38.086585,140.063498,2.2],"岩見原":[38.092404,140.061844,4.5],"岩穴":[38.105562,140.070968,2.7],"山の神":[38.105227,140.083741,4.7],"石田橋":[38.101942,140.078335,3.5],"矢妻十字路":[38.101614,140.070261,6.5],"久保":[38.097498,140.069686,3.5],"伊佐沢郵便局東":[38.094999,140.068891,14.2],"上の台":[38.095812,140.065982,2.3],"日の出町":[38.095902,140.052894,2.9],"さくら大橋東":[38.095078,140.050399,4.7],"花作町":[38.100883,140.032141,4.9],"旧JA愛菜館前":[38.103963,140.031814,9.3],"中道郵便局南(サンプラザうめや前)":[38.107587,140.031447,3],"長井工業高校前":[38.113731,140.030869,4.7],"横町":[38.113255,140.034181,4.6],"置賜総合支庁 西置賜地域振興局西":[38.11053,140.033975,6.5],"西大塚駅前":[38.07505,140.068039,3.9],"平野小学校前":[38.091954,140.007353,2.8],"伊勢堂":[38.09064,140.000919,2.7],"伊勢堂西":[38.090976,139.997467,4.7],"舘":[38.086004,139.999172,4.8],"善並":[38.08587,140.004748,4.8],"平野郵便局前":[38.088629,140.00774,3.1],"大久保":[38.091945,140.009874,7.6],"桜町十字路南":[38.097241,140.009772,3.3],"浦原十字路":[38.098989,140.01805,3.2],"宮原":[38.101158,140.023167,8.4],"石橋十字路":[38.094291,140.019878,14.4],"生涯学習プラザ":[38.091083,140.019495,6.7],"谷地寺":[38.085451,140.019898,8.4],"川窪(大豆田)":[38.084433,140.026679,4.6],"大屋敷西":[38.090126,140.027944,3.3],"八雲神社前":[38.095605,140.028672,5.6],"台町十字路":[38.097139,140.032013,8.6],"清水町児童公園":[38.110786,140.026483,4.7],"清水町公民館東":[38.110487,140.024614,5],"はなぞの保育園前":[38.108906,140.023071,4],"清水町一丁目":[38.108926,140.0211,2.6],"北向公民館前":[38.105391,140.014958,5.9],"宮地":[38.102694,140.008808,3.4],"桜町十字路西":[38.097637,140.009315,2.7],"中里(平野線)":[38.097723,140.004577,2.7],"木口":[38.096888,139.997906,4.7],"野川まなび館前":[38.095045,139.982191,4.7],"和久井窯前":[38.058041,140.049829,2.9],"今泉駅前角":[38.057238,140.047028,5.2],"今泉駅前":[38.057185,140.044301,8.7],"町(南陽葬祭前)":[38.065431,140.041606,3.4],"豊田小学校前":[38.068767,140.040514,7.4],"豊田コミュニティセンター":[38.073895,140.036705,2.6],"正法寺前":[38.075371,140.021423,2.8],"時庭駅東口":[38.075875,140.03252,3.2],"宝光院西":[38.085205,140.035979,7.8],"長井南中学校前":[38.087779,140.036545,5.3],"今泉ぶどう集荷所前":[38.054642,140.051242,3],"今泉公民館南":[38.05546,140.047261,4.3],"羽黒":[38.079085,140.039668,3.2]};</script>
+<script>window.NAGAI_DATA = { patterns: [], trips: [] };
+// 西根バス(オレンジ) 里巻・中央線 / 里巻・中央・置賜総合病院線
+// 形式: 停留所名:始発からの経過分 を "|" 区切り。時刻表PDFの各便の時刻から転記。
+// 注意: 同一方向の便は経過分がほぼ共通のため、パターン+始発時刻で保持している。
+(function (D) {
+  const P = (id, route, label, s) =>
+    D.patterns.push({ id, route, label, stops: s.split("|").map((x) => { const i = x.lastIndexOf(":"); return [x.slice(0, i), +x.slice(i + 1)]; }) });
+  const T = (pattern, no, start) => D.trips.push({ pattern, no, start });
+
+  // ---- 西根 outbound: ヤマザワ前 → 里巻 (3,4,6,7便)
+  P("nishine-out", "西根", "ヤマザワ前→里巻",
+    "ヤマザワ前:0|ホームセンタームサシ前:0|八文字屋長井店前:0|小出ヨークタウン前:0|長井警察署前:1|旧グランパリス前:2|長井高校南(頓珍館前):3|館町南:4|タスパークホテル・市民文化会館前:5|ドコモショップ長井店前:6|旧長井小学校第一校舎前:7|長井郵便局前:8|栄町(中村循環器科医院前):9|長井市役所・長井駅前:15|ファミリーマート中道店前:15|中道:16|幸町:17|谷地橋東南:17|谷地:18|中の目:20|福田十字路:21|平田:23|五祭所南:24|大沢:25|寺泉庵前:27|平泉橋北:28|上郷地区構造改善センター前:30|五祭所:31|上野:32|山岸十字路:33|白山森口:34|川原沢:35|川原沢中:35|西根農協前:36|中里(西根線):37|草岡新町:38|戸根林口:38|仁府:39|岡十字路:40|勧進代中部公民館前:40|蔵京:41|白兎西集会所前:42|白兎中スクールバスのりば:43|白兎集会センター前:44|里巻:46");
+  T("nishine-out", 3, "10:40");
+  T("nishine-out", 4, "12:10");
+  T("nishine-out", 6, "15:35");
+  T("nishine-out", 7, "17:35");
+
+  // ---- 西根 inbound A: 里巻 → ヤマザワ前 (2,5便)
+  P("nishine-in", "西根", "里巻→ヤマザワ前",
+    "里巻:0|白兎集会センター前:1|白兎中スクールバスのりば:2|白兎西集会所前:3|蔵京:3|勧進代中部公民館前:4|岡十字路:5|仁府:6|戸根林口:6|草岡新町:7|中里(西根線):8|西根農協前:9|川原沢中:9|川原沢:10|白山森口:11|山岸十字路:12|上野:13|五祭所:13|上郷地区構造改善センター前:15|平泉橋北:16|寺泉庵前:18|大沢:20|五祭所南:21|平田:22|福田十字路:24|中の目:25|谷地:25|谷地橋東南:27|幸町:28|中道:28|ファミリーマート中道店前:29|長井市役所・長井駅前:35|栄町(中村循環器科医院前):35|長井郵便局前:36|旧長井小学校第一校舎前:37|ドコモショップ長井店前:38|タスパークホテル・市民文化会館前:40|館町南:41|長井高校南(頓珍館前):42|旧グランパリス前:43|長井警察署前:43|小出ヨークタウン前:44|八文字屋長井店前:44|ホームセンタームサシ前:45|ヤマザワ前:46");
+  T("nishine-in", 2, "09:40");
+  T("nishine-in", 5, "13:35");
+
+  // ---- 西根 inbound B: 里巻 → ヤマザワ前 → 置賜総合病院前 (1便のみ)
+  P("nishine-in1", "西根", "里巻→置賜総合病院前",
+    "里巻:0|白兎集会センター前:1|白兎中スクールバスのりば:2|白兎西集会所前:3|蔵京:3|勧進代中部公民館前:4|岡十字路:5|仁府:6|戸根林口:7|草岡新町:7|中里(西根線):8|西根農協前:9|川原沢中:10|川原沢:10|白山森口:11|山岸十字路:12|上野:13|五祭所:13|上郷地区構造改善センター前:15|平泉橋北:16|寺泉庵前:18|大沢:20|五祭所南:21|平田:22|福田十字路:24|中の目:25|谷地:25|谷地橋東南:27|幸町:28|中道:29|ファミリーマート中道店前:29|長井市役所・長井駅前:35|栄町(中村循環器科医院前):35|長井郵便局前:36|旧長井小学校第一校舎前:37|ドコモショップ長井店前:38|白つつじ公園北:39|荘内銀行長井支店東:40|やませ蔵:41|あら町(阿達医院前):41|裁判所前:42|長井高校南(頓珍館前):45|旧グランパリス前:46|長井警察署前:46|小出ヨークタウン前:47|八文字屋長井店前:47|ホームセンタームサシ前:48|ヤマザワ前:50|福田橋:51|時庭口:52|河井:54|八ヶ森自然公園口:56|県立やまなみ学園口:57|今泉第二公民館前:58|置賜総合病院前:60");
+  T("nishine-in1", 1, "07:25");
+})(window.NAGAI_DATA);
+
+// 致芳バス(紫) 桐舘・白兎・中央線
+(function (D) {
+  const P = (id, route, label, s) =>
+    D.patterns.push({ id, route, label, stops: s.split("|").map((x) => { const i = x.lastIndexOf(":"); return [x.slice(0, i), +x.slice(i + 1)]; }) });
+  const T = (pattern, no, start) => D.trips.push({ pattern, no, start });
+
+  // ---- 致芳 inbound A: 桐舘 → ヤマザワ前 (2,5便)
+  P("chihou-in", "致芳", "桐舘構造改善センター前→ヤマザワ前",
+    "桐舘構造改善センター前:0|大沖公民館:5|西館:9|八反田地蔵尊西:10|致芳小学校前:11|酒町:11|宮内:12|白兎東:14|袋地蔵前:15|致芳コミュニティセンター前:17|ローソン長井成田店前:18|羽前成田駅前角:19|羽前成田郵便局前:20|福蔵院前:21|芳野:22|卯の花温泉はぎ乃湯:24|うめや北店前:26|あかしあ橋南:26|アカシア通り(舟場):27|屋城町:29|道の駅 川のみなと長井:30|旧長井小学校第一校舎前:31|長井郵便局前:32|調剤薬局前:32|長井病院前:33|薬王堂長井十日町店前:34|長井キープセンター前:35|あやめ公園前:36|はぎスタジオ前:37|あやっか前(十日町):37|撞木橋:38|山形銀行前:39|栄町(中村循環器科医院前):40|長井市役所・長井駅前:45|遊びと学びの交流施設 くるんと前:46|本町商店街駐車場南:47|本町二丁目:47|やませ蔵:48|あら町(阿達医院前):49|鈴木歯科医院前:50|長井高校前(西口):51|長井高校南(頓珍館前):52|ヤマザワ前:55");
+  T("chihou-in", 2, "09:30");
+  T("chihou-in", 5, "13:25");
+
+  // ---- 致芳 inbound B: 1便(卯の花温泉に停まらず、市街地が2分早い)
+  P("chihou-in1", "致芳", "桐舘構造改善センター前→ヤマザワ前",
+    "桐舘構造改善センター前:0|大沖公民館:5|西館:9|八反田地蔵尊西:10|致芳小学校前:11|酒町:11|宮内:12|白兎東:14|袋地蔵前:15|致芳コミュニティセンター前:17|ローソン長井成田店前:18|羽前成田駅前角:19|羽前成田郵便局前:20|福蔵院前:21|芳野:22|うめや北店前:23|あかしあ橋南:23|アカシア通り(舟場):24|屋城町:26|道の駅 川のみなと長井:27|旧長井小学校第一校舎前:28|長井郵便局前:29|調剤薬局前:30|長井病院前:31|薬王堂長井十日町店前:32|長井キープセンター前:33|あやめ公園前:34|はぎスタジオ前:35|あやっか前(十日町):36|撞木橋:36|山形銀行前:37|栄町(中村循環器科医院前):38|長井市役所・長井駅前:43|遊びと学びの交流施設 くるんと前:45|本町商店街駐車場南:45|本町二丁目:46|やませ蔵:46|あら町(阿達医院前):47|鈴木歯科医院前:48|長井高校前(西口):49|長井高校南(頓珍館前):50|ヤマザワ前:53");
+  T("chihou-in1", 1, "07:17");
+
+  // ---- 致芳 outbound: ヤマザワ前 → 桐舘 (3,4,6,7便)
+  P("chihou-out", "致芳", "ヤマザワ前→桐舘構造改善センター前",
+    "ヤマザワ前:0|長井高校南(頓珍館前):2|長井高校前(西口):3|鈴木歯科医院前:4|あら町(阿達医院前):5|やませ蔵:5|本町二丁目:6|本町商店街駐車場南:6|遊びと学びの交流施設 くるんと前:7|長井市役所・長井駅前:13|栄町(中村循環器科医院前):14|山形銀行前:14|撞木橋:15|あやっか前(十日町):16|はぎスタジオ前:17|あやめ公園前:18|長井キープセンター前:18|薬王堂長井十日町店前:19|長井病院前:20|調剤薬局前:21|長井郵便局前:21|旧長井小学校第一校舎前:22|道の駅 川のみなと長井:23|屋城町:24|アカシア通り(舟場):25|あかしあ橋南:25|うめや北店前:26|卯の花温泉はぎ乃湯:28|芳野:29|福蔵院前:30|羽前成田郵便局前:31|羽前成田駅前角:32|ローソン長井成田店前:34|致芳コミュニティセンター前:35|袋地蔵前:38|白兎東:39|宮内:41|酒町:41|致芳小学校前:42|八反田地蔵尊西:43|西館:44|大沖公民館:48|桐舘構造改善センター前:54");
+  T("chihou-out", 3, "10:42");
+  T("chihou-out", 4, "12:12");
+  T("chihou-out", 6, "15:37");
+  T("chihou-out", 7, "17:37");
+})(window.NAGAI_DATA);
+
+// 伊佐沢バス(ピンク) 伊佐沢・中央線 / 中央・伊佐沢・置賜総合病院線
+(function (D) {
+  const P = (id, route, label, s) =>
+    D.patterns.push({ id, route, label, stops: s.split("|").map((x) => { const i = x.lastIndexOf(":"); return [x.slice(0, i), +x.slice(i + 1)]; }) });
+  const T = (pattern, no, start) => D.trips.push({ pattern, no, start });
+
+  // ---- 伊佐沢 inbound: 下伊佐沢 → 本町二丁目 (1,2,5便)
+  P("isawa-in", "伊佐沢", "下伊佐沢→本町二丁目",
+    "下伊佐沢:0|北原:1|中里:2|芦沢東:4|芦沢西:5|芦沢口:5|粡町十字路:6|西町:7|岩見原:8|岩穴:11|山の神:14|石田橋:15|矢妻十字路:17|久保:17|伊佐沢郵便局東:18|上の台:19|日の出町:20|さくら大橋東:21|ヤマザワ前:25|ホームセンタームサシ前:25|八文字屋長井店前:25|小出ヨークタウン前:25|長井警察署前:26|旧グランパリス前:27|長井高校前(西口):28|花作町:30|旧JA愛菜館前:31|中道郵便局南(サンプラザうめや前):32|長井工業高校前:32|横町:33|置賜総合支庁 西置賜地域振興局西:34|遊びと学びの交流施設 くるんと前:36|長井市役所・長井駅前:42|栄町(中村循環器科医院前):42|山形銀行前:43|撞木橋:43|あやっか前(十日町):44|薬王堂長井十日町店前:45|長井病院前:46|調剤薬局前:47|長井郵便局前:47|旧長井小学校第一校舎前:48|道の駅 川のみなと長井:49|桑島記念館前:51|本町二丁目:52");
+  T("isawa-in", 1, "07:18");
+  T("isawa-in", 2, "09:33");
+  T("isawa-in", 5, "13:28");
+
+  // ---- 伊佐沢 outbound: 本町二丁目 → 下伊佐沢 (3,4,6,7便)
+  P("isawa-out", "伊佐沢", "本町二丁目→下伊佐沢",
+    "本町二丁目:0|桑島記念館前:1|道の駅 川のみなと長井:3|旧長井小学校第一校舎前:4|長井郵便局前:4|調剤薬局前:6|長井病院前:6|薬王堂長井十日町店前:7|あやっか前(十日町):8|撞木橋:9|山形銀行前:9|栄町(中村循環器科医院前):11|長井市役所・長井駅前:17|遊びと学びの交流施設 くるんと前:18|置賜総合支庁 西置賜地域振興局西:20|横町:20|長井工業高校前:21|中道郵便局南(サンプラザうめや前):22|旧JA愛菜館前:23|花作町:24|長井高校前(西口):26|旧グランパリス前:27|長井警察署前:27|小出ヨークタウン前:27|八文字屋長井店前:28|ホームセンタームサシ前:28|ヤマザワ前:29|さくら大橋東:31|日の出町:32|上の台:33|伊佐沢郵便局東:34|久保:35|矢妻十字路:36|石田橋:38|山の神:39|岩穴:42|岩見原:46|西町:47|粡町十字路:47|芦沢口:48|芦沢西:49|芦沢東:50|中里:52|北原:53|下伊佐沢:55");
+  // 7便のみPDFでさくら大橋東18:05(他便は+31分)
+  P("isawa-out7", "伊佐沢", "本町二丁目→下伊佐沢",
+    "本町二丁目:0|桑島記念館前:1|道の駅 川のみなと長井:3|旧長井小学校第一校舎前:4|長井郵便局前:4|調剤薬局前:6|長井病院前:6|薬王堂長井十日町店前:7|あやっか前(十日町):8|撞木橋:9|山形銀行前:9|栄町(中村循環器科医院前):11|長井市役所・長井駅前:17|遊びと学びの交流施設 くるんと前:18|置賜総合支庁 西置賜地域振興局西:20|横町:20|長井工業高校前:21|中道郵便局南(サンプラザうめや前):22|旧JA愛菜館前:23|花作町:24|長井高校前(西口):26|旧グランパリス前:27|長井警察署前:27|小出ヨークタウン前:27|八文字屋長井店前:28|ホームセンタームサシ前:28|ヤマザワ前:29|さくら大橋東:32|日の出町:32|上の台:33|伊佐沢郵便局東:34|久保:35|矢妻十字路:36|石田橋:38|山の神:39|岩穴:42|岩見原:46|西町:47|粡町十字路:47|芦沢口:48|芦沢西:49|芦沢東:50|中里:52|北原:53|下伊佐沢:55");
+  T("isawa-out", 3, "10:38");
+  T("isawa-out", 4, "12:08");
+  T("isawa-out", 6, "15:33");
+  T("isawa-out7", 7, "17:33");
+
+  // ---- 伊佐沢 1便のみ: 長井市役所 → 置賜総合病院前(中央・伊佐沢・置賜総合病院線)
+  // ※伊佐沢地区の停留所は全停車、西大塚前にも停車(PDFは時刻省略、ポール実測で西大塚駅前8:57)
+  P("isawa-hosp", "伊佐沢", "長井市役所→置賜総合病院前",
+    "長井市役所・長井駅前:0|置賜総合支庁 西置賜地域振興局西:0|横町:1|長井工業高校前:2|中道郵便局南(サンプラザうめや前):2|旧JA愛菜館前:3|花作町:4|長井高校前(西口):7|長井高校南(頓珍館前):8|さくら大橋東:9|日の出町:10|上の台:12|伊佐沢郵便局東:12|久保:13|矢妻十字路:14|石田橋:15|山の神:17|岩穴:20|岩見原:24|西町:25|粡町十字路:26|芦沢口:26|芦沢西:27|芦沢東:28|中里:30|北原:31|下伊佐沢:32|西大塚駅前:35|置賜総合病院前:38");
+  T("isawa-hosp", 1, "08:22");
+})(window.NAGAI_DATA);
+
+// 平野バス(緑) 九野本・中央・平山線
+(function (D) {
+  const P = (id, route, label, s) =>
+    D.patterns.push({ id, route, label, stops: s.split("|").map((x) => { const i = x.lastIndexOf(":"); return [x.slice(0, i), +x.slice(i + 1)]; }) });
+  const T = (pattern, no, start) => D.trips.push({ pattern, no, start });
+
+  // ---- 平野 A: 平野小学校前 → ヤマザワ前 → 市街地 → 野川まなび館前 (1,3,5便)
+  P("hirano-a", "平野", "平野小学校前→野川まなび館前",
+    "平野小学校前:0|伊勢堂:1|伊勢堂西:2|舘:3|善並:5|平野郵便局前:6|大久保:7|桜町十字路南:8|浦原十字路:9|宮原:10|石橋十字路:13|生涯学習プラザ:14|谷地寺:15|川窪(大豆田):16|大屋敷西:18|八雲神社前:19|台町十字路:20|長井高校前(西口):21|旧グランパリス前:22|長井警察署前:22|小出ヨークタウン前:23|八文字屋長井店前:23|ホームセンタームサシ前:24|ヤマザワ前:30|裁判所前:33|あら町(阿達医院前):33|やませ蔵:34|本町二丁目:34|荘内銀行長井支店東:35|白つつじ公園北:35|ドコモショップ長井店前:36|道の駅 川のみなと長井:37|旧長井小学校第一校舎前:38|長井郵便局前:39|調剤薬局前:39|長井病院前:40|薬王堂長井十日町店前:41|あやっか前(十日町):42|撞木橋:42|山形銀行前:43|栄町(中村循環器科医院前):44|遊びと学びの交流施設 くるんと前:45|長井市役所・長井駅前:46|ファミリーマート中道店前:47|長井工業高校前:49|中道:50|幸町:50|清水町児童公園:51|清水町公民館東:52|はなぞの保育園前:52|清水町一丁目:53|北向公民館前:55|宮地:56|桜町十字路西:57|中里(平野線):58|木口:59|野川まなび館前:61");
+  T("hirano-a", 1, "07:30");
+  T("hirano-a", 3, "10:20");
+  T("hirano-a", 5, "13:55");
+
+  // ---- 平野 B: 野川まなび館前 → 市街地 → ヤマザワ前 → 平野小学校前 (2,4,6便)
+  P("hirano-b", "平野", "野川まなび館前→平野小学校前",
+    "野川まなび館前:0|木口:2|中里(平野線):3|桜町十字路西:4|宮地:5|北向公民館前:6|清水町一丁目:7|はなぞの保育園前:8|清水町公民館東:8|清水町児童公園:9|幸町:9|中道:10|長井工業高校前:12|ファミリーマート中道店前:13|長井市役所・長井駅前:15|遊びと学びの交流施設 くるんと前:16|栄町(中村循環器科医院前):17|山形銀行前:17|撞木橋:18|あやっか前(十日町):18|薬王堂長井十日町店前:19|長井病院前:20|調剤薬局前:21|長井郵便局前:22|旧長井小学校第一校舎前:23|道の駅 川のみなと長井:24|ドコモショップ長井店前:24|白つつじ公園北:25|荘内銀行長井支店東:25|本町二丁目:26|やませ蔵:26|あら町(阿達医院前):27|裁判所前:28|ヤマザワ前:36|ホームセンタームサシ前:36|八文字屋長井店前:36|小出ヨークタウン前:37|長井警察署前:37|旧グランパリス前:38|長井高校前(西口):39|台町十字路:40|八雲神社前:41|大屋敷西:43|川窪(大豆田):44|谷地寺:45|生涯学習プラザ:46|石橋十字路:47|宮原:50|浦原十字路:51|桜町十字路南:53|大久保:54|平野郵便局前:55|善並:56|舘:57|伊勢堂西:58|伊勢堂:59|平野小学校前:61");
+  T("hirano-b", 2, "08:54");
+  T("hirano-b", 4, "11:44");
+
+  // ---- 平野 B6: 6便のみ(八文字屋付近から1分遅い。PDF・ポールで確認済み)
+  P("hirano-b6", "平野", "野川まなび館前→平野小学校前",
+    "野川まなび館前:0|木口:2|中里(平野線):3|桜町十字路西:4|宮地:5|北向公民館前:6|清水町一丁目:7|はなぞの保育園前:8|清水町公民館東:8|清水町児童公園:9|幸町:9|中道:10|長井工業高校前:12|ファミリーマート中道店前:13|長井市役所・長井駅前:15|遊びと学びの交流施設 くるんと前:16|栄町(中村循環器科医院前):17|山形銀行前:17|撞木橋:18|あやっか前(十日町):18|薬王堂長井十日町店前:19|長井病院前:20|調剤薬局前:21|長井郵便局前:22|旧長井小学校第一校舎前:23|道の駅 川のみなと長井:24|ドコモショップ長井店前:24|白つつじ公園北:25|荘内銀行長井支店東:25|本町二丁目:26|やませ蔵:26|あら町(阿達医院前):27|裁判所前:28|ヤマザワ前:36|ホームセンタームサシ前:36|八文字屋長井店前:37|小出ヨークタウン前:37|長井警察署前:38|旧グランパリス前:39|長井高校前(西口):40|台町十字路:41|八雲神社前:42|大屋敷西:43|川窪(大豆田):45|谷地寺:46|生涯学習プラザ:47|石橋十字路:48|宮原:51|浦原十字路:52|桜町十字路南:53|大久保:54|平野郵便局前:55|善並:56|舘:58|伊勢堂西:59|伊勢堂:60|平野小学校前:61");
+  T("hirano-b6", 6, "15:09");
+
+  // ---- 平野 B7: 7便のみ(市役所付近からダイヤが3分遅い)
+  P("hirano-b7", "平野", "野川まなび館前→平野小学校前",
+    "野川まなび館前:0|木口:2|中里(平野線):3|桜町十字路西:4|宮地:5|北向公民館前:6|清水町一丁目:7|はなぞの保育園前:8|清水町公民館東:8|清水町児童公園:9|幸町:9|中道:10|長井工業高校前:12|ファミリーマート中道店前:14|長井市役所・長井駅前:18|遊びと学びの交流施設 くるんと前:19|栄町(中村循環器科医院前):20|山形銀行前:20|撞木橋:21|あやっか前(十日町):21|薬王堂長井十日町店前:22|長井病院前:23|調剤薬局前:24|長井郵便局前:25|旧長井小学校第一校舎前:26|道の駅 川のみなと長井:27|ドコモショップ長井店前:27|白つつじ公園北:28|荘内銀行長井支店東:28|本町二丁目:29|やませ蔵:29|あら町(阿達医院前):30|裁判所前:31|ヤマザワ前:39|ホームセンタームサシ前:39|八文字屋長井店前:40|小出ヨークタウン前:40|長井警察署前:41|旧グランパリス前:42|長井高校前(西口):43|台町十字路:44|八雲神社前:45|大屋敷西:46|川窪(大豆田):48|谷地寺:49|生涯学習プラザ:50|石橋十字路:51|宮原:54|浦原十字路:55|桜町十字路南:56|大久保:57|平野郵便局前:58|善並:59|舘:61|伊勢堂西:62|伊勢堂:63|平野小学校前:64");
+  T("hirano-b7", 7, "17:22");
+})(window.NAGAI_DATA);
+
+// 豊田バス(青) 置賜総合病院・豊田・中央線 / 中央・置賜総合病院線
+// 病院⇄ヤマザワ前の間を「豊田(正法寺)経由」「河井経由・各停」「河井経由・快速(停車少)」で運行
+(function (D) {
+  const P = (id, route, label, s) =>
+    D.patterns.push({ id, route, label, stops: s.split("|").map((x) => { const i = x.lastIndexOf(":"); return [x.slice(0, i), +x.slice(i + 1)]; }) });
+  const T = (pattern, no, start) => D.trips.push({ pattern, no, start });
+
+  // 置賜総合病院 → 今泉・豊田(正法寺)経由 → ヤマザワ前 (33分)
+  P("toyoda-x1", "豊田", "置賜総合病院→ヤマザワ前(豊田経由)",
+    "置賜総合病院前:0|今泉第二公民館前:1|和久井窯前:2|今泉駅前角:4|今泉駅前:5|親道:8|一本木水木:9|東十字路:11|窪:13|本郷:14|田中:16|町(南陽葬祭前):17|豊田小学校前:18|豊田コミュニティセンター:19|正法寺前:25|時庭駅東口:28|宝光院西:30|長井南中学校前:31|小出ヨークタウン前:31|八文字屋長井店前:31|ホームセンタームサシ前:32|ヤマザワ前:33");
+  T("toyoda-x1", 1, "07:22");
+  T("toyoda-x1", 3, "10:12");
+  T("toyoda-x1", 5, "13:47");
+
+  // ヤマザワ前 → 豊田(正法寺)経由 → 置賜総合病院 (33分)
+  P("toyoda-x3", "豊田", "ヤマザワ前→置賜総合病院(豊田経由)",
+    "ヤマザワ前:0|ホームセンタームサシ前:0|八文字屋長井店前:0|小出ヨークタウン前:1|長井南中学校前:1|宝光院西:2|時庭駅東口:4|正法寺前:8|豊田コミュニティセンター:13|豊田小学校前:14|町(南陽葬祭前):15|田中:17|本郷:18|窪:20|東十字路:21|一本木水木:23|親道:24|今泉駅前:28|今泉駅前角:29|和久井窯前:30|今泉第二公民館前:31|置賜総合病院前:33");
+  T("toyoda-x3", 2, "08:22");
+  T("toyoda-x3", 4, "12:20");
+  T("toyoda-x3", 6, "15:45");
+  T("toyoda-x3", 7, "18:05");
+
+  // 置賜総合病院 → 河井経由(各停) → ヤマザワ前 (21分)
+  P("toyoda-yin", "豊田", "置賜総合病院→ヤマザワ前(中央線)",
+    "置賜総合病院前:0|今泉ぶどう集荷所前:3|今泉公民館南:4|今泉駅前:5|今泉駅前角:6|和久井窯前:7|県立やまなみ学園口:8|八ヶ森自然公園口:9|河井:11|町(南陽葬祭前):13|豊田小学校前:14|羽黒:17|時庭口:18|福田橋:19|ヤマザワ前:21");
+  T("toyoda-yin", 1, "07:34");
+  T("toyoda-yin", 3, "10:04");
+  T("toyoda-yin", 4, "12:14");
+  T("toyoda-yin", 5, "13:59");
+  T("toyoda-yin", 6, "15:09");
+  T("toyoda-yin", 7, "17:39");
+
+  // ヤマザワ前 → 河井経由(各停) → 置賜総合病院 (21分)
+  P("toyoda-yout", "豊田", "ヤマザワ前→置賜総合病院(中央線)",
+    "ヤマザワ前:0|福田橋:1|時庭口:2|羽黒:3|豊田小学校前:6|町(南陽葬祭前):7|河井:9|八ヶ森自然公園口:11|県立やまなみ学園口:11|和久井窯前:12|今泉駅前角:14|今泉駅前:15|今泉公民館南:16|今泉ぶどう集荷所前:17|置賜総合病院前:21");
+  T("toyoda-yout", 1, "08:00");
+  T("toyoda-yout", 2, "09:30");
+  T("toyoda-yout", 3, "11:10");
+  T("toyoda-yout", 4, "12:40");
+  T("toyoda-yout", 5, "14:25");
+  T("toyoda-yout", 6, "15:45");
+  T("toyoda-yout", 6, "16:30");
+  T("toyoda-yout", 7, "18:05");
+
+  // 快速: 置賜総合病院 → ヤマザワ前 (9分)
+  P("toyoda-expin", "豊田", "置賜総合病院→ヤマザワ前(中央線・快速)",
+    "置賜総合病院前:0|県立やまなみ学園口:2|八ヶ森自然公園口:3|時庭口:6|福田橋:7|ヤマザワ前:9");
+  T("toyoda-expin", 4, "11:56");
+  T("toyoda-expin", 7, "17:21");
+
+  // 快速: ヤマザワ前 → 置賜総合病院 (9分)
+  P("toyoda-expout", "豊田", "ヤマザワ前→置賜総合病院(中央線・快速)",
+    "ヤマザワ前:0|福田橋:1|時庭口:2|八ヶ森自然公園口:5|県立やまなみ学園口:6|置賜総合病院前:9");
+  T("toyoda-expout", 2, "10:30");
+  T("toyoda-expout", 3, "10:50");
+})(window.NAGAI_DATA);
+
+// 長井市営バス 乗換検索エンジン(ブラウザ/Node 共通)
+(function (root) {
+  const D = root.NAGAI_DATA;
+  const HUBS = new Set(["長井市役所・長井駅前", "ヤマザワ前"]);
+  const MAX_WAIT = 150; // 乗換の最大待ち時間(分)
+
+  const hm = (s) => { const [h, m] = s.split(":").map(Number); return h * 60 + m; };
+  const fmt = (m) => String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0");
+
+  const patById = {};
+  D.patterns.forEach((p) => (patById[p.id] = p));
+  const TRIPS = D.trips.map((t, i) => {
+    const p = patById[t.pattern];
+    const s0 = hm(t.start);
+    return { id: i, pattern: p.id, route: p.route, no: t.no, label: p.label,
+      stops: p.stops.map(([n, o]) => ({ n, t: s0 + o })) };
+  });
+  const byStop = {};
+  TRIPS.forEach((tr) => tr.stops.forEach((s, i) => { (byStop[s.n] = byStop[s.n] || []).push([tr, i]); }));
+  const STOP_NAMES = Object.keys(byStop);
+
+  // ---------- 運賃(目安) ----------
+  // 各路線のエリア(A,B,C…)に停留所を割り当て、区間をまたいだ数×100円(上限あり)。
+  const Z = {
+    "西根": { max: 400,
+      sets: { 1: "谷地橋東南,幸町,中道,ファミリーマート中道店前",
+        2: "栄町(中村循環器科医院前),長井郵便局前,旧長井小学校第一校舎前,ドコモショップ長井店前,白つつじ公園北,荘内銀行長井支店東,やませ蔵,あら町(阿達医院前),裁判所前,長井高校南(頓珍館前),旧グランパリス前,長井警察署前,小出ヨークタウン前,八文字屋長井店前,ホームセンタームサシ前,タスパークホテル・市民文化会館前,館町南",
+        3: "福田橋,時庭口,河井,八ヶ森自然公園口,県立やまなみ学園口,今泉第二公民館前,置賜総合病院前" },
+      hubs: { "長井市役所・長井駅前": [1, 2], "ヤマザワ前": [2, 3] } },
+    "致芳": { max: 300,
+      sets: { 1: "うめや北店前,あかしあ橋南,アカシア通り(舟場),屋城町,道の駅 川のみなと長井,旧長井小学校第一校舎前,長井郵便局前,調剤薬局前,長井病院前,薬王堂長井十日町店前,長井キープセンター前,あやめ公園前,はぎスタジオ前,あやっか前(十日町),撞木橋,山形銀行前,栄町(中村循環器科医院前)",
+        2: "遊びと学びの交流施設 くるんと前,本町商店街駐車場南,本町二丁目,やませ蔵,あら町(阿達医院前),鈴木歯科医院前,長井高校前(西口),長井高校南(頓珍館前)" },
+      hubs: { "長井市役所・長井駅前": [1, 2], "ヤマザワ前": [2, 2] } },
+    "平野": { max: 500,
+      sets: { 1: "台町十字路,長井高校前(西口),旧グランパリス前,長井警察署前,小出ヨークタウン前,八文字屋長井店前,ホームセンタームサシ前",
+        2: "裁判所前,あら町(阿達医院前),やませ蔵,本町二丁目,荘内銀行長井支店東,白つつじ公園北,ドコモショップ長井店前,道の駅 川のみなと長井,旧長井小学校第一校舎前,長井郵便局前,調剤薬局前,長井病院前,薬王堂長井十日町店前,あやっか前(十日町),撞木橋,山形銀行前,栄町(中村循環器科医院前),遊びと学びの交流施設 くるんと前",
+        3: "ファミリーマート中道店前,長井工業高校前,中道,幸町,清水町児童公園,清水町公民館東,はなぞの保育園前,清水町一丁目,北向公民館前",
+        4: "宮地,桜町十字路西,中里(平野線),木口,野川まなび館前" },
+      hubs: { "長井市役所・長井駅前": [2, 3], "ヤマザワ前": [1, 2] } },
+    "伊佐沢": { max: 300,
+      sets: { 1: "日の出町,さくら大橋東,ホームセンタームサシ前,八文字屋長井店前,小出ヨークタウン前,長井警察署前,旧グランパリス前,長井高校前(西口),長井高校南(頓珍館前),花作町,旧JA愛菜館前,中道郵便局南(サンプラザうめや前),長井工業高校前,横町,置賜総合支庁 西置賜地域振興局西,遊びと学びの交流施設 くるんと前",
+        2: "栄町(中村循環器科医院前),山形銀行前,撞木橋,あやっか前(十日町),薬王堂長井十日町店前,長井病院前,調剤薬局前,長井郵便局前,旧長井小学校第一校舎前,道の駅 川のみなと長井,桑島記念館前,本町二丁目,西大塚駅前,置賜総合病院前" },
+      hubs: { "長井市役所・長井駅前": [1, 2], "ヤマザワ前": [1, 1] } },
+    "豊田": { max: 300,
+      sets: { 1: "小出ヨークタウン前,八文字屋長井店前,ホームセンタームサシ前" },
+      hubs: { "ヤマザワ前": [1, 2] } },
+  };
+  Object.values(Z).forEach((r) => {
+    r.map = {};
+    Object.entries(r.sets).forEach(([k, v]) => v.split(",").forEach((n) => (r.map[n] = [+k, +k])));
+    Object.entries(r.hubs).forEach(([n, v]) => (r.map[n] = v));
+  });
+  function zonesOf(patternId, route, stop) {
+    if (route === "豊田" && !patternId.startsWith("toyoda-x")) return [0, 0];
+    return Z[route].map[stop] || [0, 0];
+  }
+  function legFare(tr, a, b) {
+    const za = zonesOf(tr.pattern, tr.route, tr.stops[a].n);
+    const zb = zonesOf(tr.pattern, tr.route, tr.stops[b].n);
+    let best = 99;
+    for (const x of za) for (const y of zb) best = Math.min(best, Math.abs(x - y) + 1);
+    return Math.min(best * 100, Z[tr.route].max);
+  }
+
+  // ---------- 運行日 ----------
+  const HOLIDAYS = new Set((
+    "2026-01-01,2026-01-12,2026-02-11,2026-02-23,2026-03-20,2026-04-29,2026-05-03,2026-05-04,2026-05-05,2026-05-06,2026-07-20,2026-08-11,2026-09-21,2026-09-22,2026-09-23,2026-10-12,2026-11-03,2026-11-23," +
+    "2027-01-01,2027-01-11,2027-02-11,2027-02-23,2027-03-21,2027-03-22,2027-04-29,2027-05-03,2027-05-04,2027-05-05,2027-07-19,2027-08-11,2027-09-20,2027-09-23,2027-10-11,2027-11-03,2027-11-23").split(","));
+  // 戻り値: null=運行日 / 文字列=運休の理由
+  function offReason(y, m, d) {
+    const dt = new Date(y, m - 1, d);
+    const w = dt.getDay();
+    const key = `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    if (w === 0 || w === 6) return "土曜・日曜は運休です";
+    if (HOLIDAYS.has(key)) return "祝日は運休です";
+    if (m === 8 && d >= 13 && d <= 16) return "お盆期間は運休です";
+    if ((m === 12 && d >= 29) || (m === 1 && d <= 3)) return "年末年始は運休です";
+    return null;
+  }
+
+  // ---------- 検索 ----------
+  function enumerate(from, to) {
+    const out = [];
+    function go(stop, ready, legs) {
+      for (const [tr, i] of byStop[stop] || []) {
+        const dep = tr.stops[i].t;
+        if (legs.length && (dep < ready || dep - ready > MAX_WAIT)) continue;
+        if (legs.some((l) => l.tr === tr)) continue;
+        for (let j = i + 1; j < tr.stops.length; j++) {
+          const a = tr.stops[j];
+          const leg = { tr, i, j };
+          if (a.n === to) { out.push([...legs, leg]); }
+          else if (legs.length < 2 && HUBS.has(a.n) && stop !== a.n) go(a.n, a.t, [...legs, leg]);
+        }
+      }
+    }
+    if (from === to) return [];
+    go(from, -1, []);
+    return out.map((legs) => {
+      const f = legs[0], l = legs[legs.length - 1];
+      return { legs: legs.map((x) => ({
+          route: x.tr.route, no: x.tr.no, label: x.tr.label,
+          from: x.tr.stops[x.i].n, to: x.tr.stops[x.j].n,
+          dep: x.tr.stops[x.i].t, arr: x.tr.stops[x.j].t,
+          stops: x.j - x.i, fare: legFare(x.tr, x.i, x.j),
+          via: x.tr.stops.slice(x.i + 1, x.j).map((s) => s.n) })),
+        dep: f.tr.stops[f.i].t, arr: l.tr.stops[l.j].t,
+        fare: legs.reduce((s, x) => s + legFare(x.tr, x.i, x.j), 0) };
+    });
+  }
+  function dominated(a, b) { // b が a を支配するか
+    if (a === b) return false;
+    const better = b.dep >= a.dep && b.arr <= a.arr && b.legs.length <= a.legs.length;
+    const same = b.dep === a.dep && b.arr === a.arr && b.legs.length === a.legs.length;
+    return better && !same;
+  }
+  // mode: "dep"(出発時刻以降) / "arr"(到着時刻まで)
+  function search(from, to, time, mode) {
+    let all = enumerate(from, to);
+    all = all.filter((a, idx) => !all.some((b, k) => dominated(a, b) || (k < idx && b.dep === a.dep && b.arr === a.arr && b.legs.length === a.legs.length && JSON.stringify(b.legs.map(x=>[x.route,x.no,x.from,x.to])) === JSON.stringify(a.legs.map(x=>[x.route,x.no,x.from,x.to])))));
+    if (mode === "arr") return all.filter((r) => r.arr <= time).sort((a, b) => b.dep - a.dep || a.arr - b.arr).slice(0, 6);
+    return all.filter((r) => r.dep >= time).sort((a, b) => a.dep - b.dep || a.arr - b.arr).slice(0, 6);
+  }
+  // ある停留所の発車一覧
+  function departures(stop) {
+    return (byStop[stop] || []).filter(([tr, i]) => i < tr.stops.length - 1)
+      .map(([tr, i]) => ({ route: tr.route, no: tr.no, label: tr.label, t: tr.stops[i].t, last: tr.stops[tr.stops.length - 1].n }))
+      .sort((a, b) => a.t - b.t);
+  }
+  const api = { TRIPS, STOP_NAMES, HUBS, search, departures, offReason, fmt, hm, enumerate };
+  root.NAGAI = api;
+  if (typeof module !== "undefined") module.exports = api;
+})(typeof window !== "undefined" ? window : globalThis);
+</script>
+<script>
+(function () {
+  const N = window.NAGAI;
+  const $ = (s) => document.querySelector(s);
+  const ROUTES = { "西根": ["r-nishine", "西根バス"], "致芳": ["r-chihou", "致芳バス"], "平野": ["r-hirano", "平野バス"], "伊佐沢": ["r-isawa", "伊佐沢バス"], "豊田": ["r-toyoda", "豊田バス"] };
+  const WD = "日月火水木金土";
+  const STOPSET = new Set(N.STOP_NAMES);
+  const STOP_ROUTES = {};
+  N.TRIPS.forEach((tr) => tr.stops.forEach((s) => { (STOP_ROUTES[s.n] = STOP_ROUTES[s.n] || new Set()).add(tr.route); }));
+  const HUB_LIST = ["長井市役所・長井駅前", "ヤマザワ前", "置賜総合病院前", "本町二丁目"];
+  const store = { get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} } };
+
+  // ---- 日付 ----
+  const pad = (n) => String(n).padStart(2, "0");
+  const ymd = (d) => d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
+  const parse = (s) => { const [y, m, d] = s.split("-").map(Number); return { y, m, d }; };
+  const off = (s) => { if (!s) return "日付を入力してください"; const p = parse(s); return N.offReason(p.y, p.m, p.d); };
+  const label = (s) => { const p = parse(s); return p.m + "月" + p.d + "日(" + WD[new Date(p.y, p.m - 1, p.d).getDay()] + ")"; };
+  function nextOp(s) { const p = parse(s); const d = new Date(p.y, p.m - 1, p.d); for (let i = 0; i < 40; i++) { d.setDate(d.getDate() + 1); if (!N.offReason(d.getFullYear(), d.getMonth() + 1, d.getDate())) return ymd(d); } return s; }
+
+  // ---- 状態 ----
+  const state = { mode: "dep" };
+  const fromEl = $("#from"), toEl = $("#to"), dateEl = $("#date"), timeEl = $("#time");
+  const now = new Date();
+  let startDate = ymd(now), startTime = pad(now.getHours()) + ":" + pad(now.getMinutes()), initialNote = "";
+  if (off(startDate)) { initialNote = label(startDate) + "は運休のため、次の運行日を表示しています。"; startDate = nextOp(startDate); startTime = "07:00"; }
+  else if (now.getHours() * 60 + now.getMinutes() > 18 * 60 + 10) { initialNote = "今日の運行は終わっているため、次の運行日を表示しています。"; startDate = nextOp(startDate); startTime = "07:00"; }
+  dateEl.value = startDate; timeEl.value = startTime;
+  fromEl.value = STOPSET.has(store.get("nagai.from")) ? store.get("nagai.from") : "里巻";
+  toEl.value = STOPSET.has(store.get("nagai.to")) ? store.get("nagai.to") : "置賜総合病院前";
+
+  // ---- 入力補完 ----
+  const norm = (s) => s.replace(/[\s　]/g, "").toLowerCase();
+  function suggest(input, ul, onPick) {
+    let items = [], idx = -1;
+    function routesHtml(n) { return '<span class="rt">' + [...STOP_ROUTES[n]].map((r) => '<span class="dot ' + ROUTES[r][0] + '" title="' + ROUTES[r][1] + '"></span>').join("") + "</span>"; }
+    function show() {
+      const q = norm(input.value);
+      let list = q ? N.STOP_NAMES.filter((n) => norm(n).includes(q)) : HUB_LIST.slice();
+      list.sort((a, b) => (norm(b).startsWith(q) ? 1 : 0) - (norm(a).startsWith(q) ? 1 : 0));
+      items = list.slice(0, 8); idx = -1;
+      ul.innerHTML = items.length ? items.map((n, i) => '<li role="option" data-i="' + i + '"><span>' + n + "</span>" + routesHtml(n) + "</li>").join("") : '<li class="sub">見つかりません</li>';
+      ul.hidden = false; input.setAttribute("aria-expanded", "true");
+    }
+    function hide() { ul.hidden = true; input.setAttribute("aria-expanded", "false"); }
+    function pick(n) { input.value = n; hide(); onPick && onPick(n); }
+    input.addEventListener("focus", () => { input.select(); show(); });
+    input.addEventListener("input", show);
+    input.addEventListener("keydown", (e) => {
+      if (ul.hidden) return;
+      if (e.key === "ArrowDown") { e.preventDefault(); idx = Math.min(items.length - 1, idx + 1); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); idx = Math.max(0, idx - 1); }
+      else if (e.key === "Enter" && items.length) { e.preventDefault(); pick(items[Math.max(0, idx)]); return; }
+      else if (e.key === "Escape") { hide(); return; } else return;
+      [...ul.children].forEach((li, i) => li.setAttribute("aria-selected", i === idx ? "true" : "false"));
+    });
+    ul.addEventListener("pointerdown", (e) => { const li = e.target.closest("li[data-i]"); if (li) { e.preventDefault(); pick(items[+li.dataset.i]); } });
+    input.addEventListener("blur", () => setTimeout(hide, 120));
+  }
+
+  // ---- 検索結果 ----
+  const dur = (m) => (m >= 60 ? Math.floor(m / 60) + "時間" : "") + (m % 60 ? (m % 60) + "分" : "");
+  const hubCls = (n) => (n === "長井市役所・長井駅前" ? "red" : n === "ヤマザワ前" ? "blue" : "");
+  function card(r, i) {
+    const trans = r.legs.length - 1;
+    let html = '<article class="card"><div class="sum"><div class="times">' + N.fmt(r.dep) + " → " + N.fmt(r.arr) + "</div>";
+    html += '<div class="meta"><span>所要 ' + dur(r.arr - r.dep) + "</span><span>運賃 約" + r.fare + "円</span>" + (trans ? "<span>乗換 " + trans + "回</span>" : '<span class="badge">乗換なし</span>') + "</div></div>";
+    html += '<div class="legs">';
+    r.legs.forEach((l, k) => {
+      if (k) {
+        const prev = r.legs[k - 1], wait = l.dep - prev.arr;
+        html += '<div class="xfer"><span class="hub ' + hubCls(l.from) + '">乗換</span><b>' + l.from + "</b><span>待ち " + (wait ? wait + "分" : "なし") + (wait <= 10 ? "(隣に停まっている車両へ)" : "") + "</span></div>";
+      }
+      const [cls, name] = ROUTES[l.route];
+      html += '<div class="leg ' + cls + '"><div class="bar"></div><div class="body"><span class="chip">' + name + "</span> <span class=\"sub\">" + l.no + "便 ・ " + l.label + " ・ " + l.fare + "円</span>";
+      html += '<div class="pt"><span class="tm">' + N.fmt(l.dep) + '</span><span class="nm">' + l.from + "</span></div>";
+      if (l.via.length) html += '<details class="via"><summary>途中 ' + l.via.length + "か所に停まります</summary><ol>" + l.via.map((v) => "<li>" + v + "</li>").join("") + "</ol></details>";
+      html += '<div class="pt"><span class="tm">' + N.fmt(l.arr) + '</span><span class="nm">' + l.to + "</span></div></div></div>";
+    });
+    return html + "</div></article>";
+  }
+  function run() {
+    const from = fromEl.value.trim(), to = toEl.value.trim(), box = $("#results"), nt = $("#notice");
+    store.set("nagai.from", from); store.set("nagai.to", to);
+    nt.hidden = true; nt.innerHTML = "";
+    if (!STOPSET.has(from) || !STOPSET.has(to)) { box.innerHTML = '<div class="empty">出発と到着の停留所を、候補から選んでください。</div>'; return; }
+    if (from === to) { box.innerHTML = '<div class="empty">出発と到着が同じです。</div>'; return; }
+    const reason = off(dateEl.value);
+    if (reason) {
+      const nx = dateEl.value ? nextOp(dateEl.value) : null;
+      nt.hidden = false; nt.innerHTML = (dateEl.value ? label(dateEl.value) + "は" : "") + reason.replace(/^.*は/, "").replace("です", "") + "のため、バスは走りません。" + (nx ? '<br><button type="button" id="gonext">次の運行日(' + label(nx) + ')にする</button>' : "");
+      box.innerHTML = "";
+      const b = $("#gonext"); if (b) b.onclick = () => { dateEl.value = nx; run(); };
+      return;
+    }
+    if (initialNote) { nt.hidden = false; nt.textContent = initialNote; initialNote = ""; }
+    const res = N.search(from, to, N.hm(timeEl.value || "00:00"), state.mode);
+    if (!res.length) {
+      box.innerHTML = '<div class="empty">この条件では見つかりませんでした。時刻を早めるか、別の日付にすると見つかることがあります。乗換は、長井市役所・長井駅前とヤマザワ前の2か所だけを探しています。</div>';
+      return;
+    }
+    box.innerHTML = res.map(card).join("");
+  }
+
+  // ---- 時刻表 ----
+  const ttEl = $("#ttstop");
+  function renderTT() {
+    const n = ttEl.value.trim();
+    if (!STOPSET.has(n)) { $("#tttitle").textContent = ""; $("#ttlist").innerHTML = '<div class="row"><span class="sub">候補から停留所を選んでください。</span></div>'; $("#ttfrom").hidden = true; return; }
+    $("#ttfrom").hidden = false;
+    $("#tttitle").textContent = n;
+    const deps = N.departures(n);
+    $("#ttlist").innerHTML = deps.length ? deps.map((d) => '<div class="row ' + ROUTES[d.route][0] + '"><span class="t">' + N.fmt(d.t) + '</span><span class="chip">' + ROUTES[d.route][1] + '</span><span class="d">' + d.last + "行き</span></div>").join("") : '<div class="row"><span class="sub">この停留所から発車する便はありません(終点のみ)。</span></div>';
+  }
+
+
+  // ---- 地図 ----
+  const POS = window.NAGAI_POS || {};
+  const TILE_SRC = [{ name: "国土地理院", url: "https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png" }, { name: "OpenStreetMap", url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png" }, { name: "CARTO", url: "https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png" }];
+  const MAP = { prov: 0, fail: 0, z: 12, cx: 0, cy: 0, inited: false, sel: null, hidden: new Set(), me: null };
+  const RCOL = { "西根": "var(--r-nishine)", "致芳": "var(--r-chihou)", "平野": "var(--r-hirano)", "伊佐沢": "var(--r-isawa)", "豊田": "var(--r-toyoda)" };
+  const mbox = $("#mapbox"), msvg = $("#mapsvg"), mtiles = $("#maptiles");
+  const wx = (lon, z) => (lon + 180) / 360 * 256 * Math.pow(2, z);
+  const wy = (lat, z) => { const r = lat * Math.PI / 180; return (1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * 256 * Math.pow(2, z); };
+  const unx = (x, z) => x / (256 * Math.pow(2, z)) * 360 - 180;
+  const uny = (y, z) => { const n = Math.PI - 2 * Math.PI * y / (256 * Math.pow(2, z)); return 180 / Math.PI * Math.atan(Math.sinh(n)); };
+  const names = Object.keys(POS);
+  // 路線ごとの線(停車順に結ぶ)
+  const LINES = [];
+  { const seen = new Set();
+    N.TRIPS.forEach((tr) => { const pts = tr.stops.map((s) => s.n).filter((n) => POS[n]); const key = tr.route + "|" + pts.join(">"); if (pts.length > 1 && !seen.has(key)) { seen.add(key); LINES.push({ route: tr.route, pts }); } }); }
+  function mapSize() { const r = mbox.getBoundingClientRect(); return { w: r.width || 360, h: r.height || 400 }; }
+  function fit() {
+    const { w, h } = mapSize();
+    const lats = names.map((n) => POS[n][0]), lons = names.map((n) => POS[n][1]);
+    const la0 = Math.min(...lats), la1 = Math.max(...lats), lo0 = Math.min(...lons), lo1 = Math.max(...lons);
+    let z = 17; while (z > 8 && (Math.abs(wx(lo1, z) - wx(lo0, z)) > w - 60 || Math.abs(wy(la0, z) - wy(la1, z)) > h - 60)) z -= 0.25;
+    MAP.z = z; MAP.cx = (wx(lo0, z) + wx(lo1, z)) / 2; MAP.cy = (wy(la0, z) + wy(la1, z)) / 2; drawMap();
+  }
+  function setZoom(nz, px, py) {
+    nz = Math.max(10, Math.min(18, nz)); const { w, h } = mapSize();
+    px = px == null ? w / 2 : px; py = py == null ? h / 2 : py;
+    const lon = unx(MAP.cx + px - w / 2, MAP.z), lat = uny(MAP.cy + py - h / 2, MAP.z);
+    MAP.z = nz; MAP.cx = wx(lon, nz) - px + w / 2; MAP.cy = wy(lat, nz) - py + h / 2; drawMap();
+  }
+  function drawTiles(w, h) {
+    const Z = Math.max(8, Math.min(17, Math.round(MAP.z))), k = Math.pow(2, MAP.z - Z), T = 256 * k;
+    const x0 = MAP.cx - w / 2, y0 = MAP.cy - h / 2;
+    const sx = x0 / Math.pow(2, MAP.z - Z) / 256, sy = y0 / Math.pow(2, MAP.z - Z) / 256;
+    const tx0 = Math.floor(sx), ty0 = Math.floor(sy), tx1 = Math.floor((x0 + w) / T), ty1 = Math.floor((y0 + h) / T);
+    const want = new Set(); const frag = [];
+    for (let tx = tx0; tx <= tx1; tx++) for (let ty = ty0; ty <= ty1; ty++) {
+      const id = Z + "/" + tx + "/" + ty; want.add(id);
+      let im = mtiles.querySelector('img[data-id="' + id + '"]');
+      if (!im) { im = new Image(); im.dataset.id = id; im.alt = ""; im.decoding = "async"; im.width = 256; im.height = 256; im.onerror = () => { im.style.display = "none"; if (!MAP.tileOK && ++MAP.fail >= 4 && MAP.prov < TILE_SRC.length - 1) { MAP.prov++; MAP.fail = 0; mtiles.innerHTML = ""; drawMap(); } }; im.onload = () => { MAP.tileOK = true; $("#mapnote").textContent = "地図:" + TILE_SRC[MAP.prov].name; }; im.src = TILE_SRC[MAP.prov].url.replace("{z}", Z).replace("{x}", tx).replace("{y}", ty); frag.push(im); }
+      im.style.left = "0"; im.style.top = "0";
+      im.style.transform = "translate(" + (tx * T - x0) + "px," + (ty * T - y0) + "px) scale(" + k + ")";
+    }
+    frag.forEach((im) => mtiles.appendChild(im));
+    [...mtiles.children].forEach((im) => { if (!want.has(im.dataset.id)) im.remove(); });
+  }
+  function drawMap() {
+    const { w, h } = mapSize(); const X = (lon) => wx(lon, MAP.z) - MAP.cx + w / 2, Y = (lat) => wy(lat, MAP.z) - MAP.cy + h / 2;
+    drawTiles(w, h);
+    let o = "";
+    LINES.forEach((l) => { if (MAP.hidden.has(l.route)) return; o += '<polyline fill="none" stroke="' + RCOL[l.route] + '" stroke-width="3" stroke-opacity=".55" stroke-linejoin="round" points="' + l.pts.map((n) => X(POS[n][1]).toFixed(1) + "," + Y(POS[n][0]).toFixed(1)).join(" ") + '"/>'; });
+    const showLbl = MAP.z >= 14.6;
+    (MAP.sel && POS[MAP.sel] ? names.filter((n) => n !== MAP.sel).concat([MAP.sel]) : names).forEach((n) => {
+      const rs = [...(STOP_ROUTES[n] || [])]; if (rs.length && rs.every((r) => MAP.hidden.has(r))) return;
+      const x = X(POS[n][1]), y = Y(POS[n][0]); if (x < -30 || y < -30 || x > w + 30 || y > h + 30) return;
+      const hub = n === "長井市役所・長井駅前" ? "var(--hub-red)" : n === "ヤマザワ前" ? "var(--hub-blue)" : null;
+      const col = hub || (rs.length === 1 ? RCOL[rs[0]] : "var(--surface)");
+      const sel = MAP.sel === n, r = hub ? 9 : rs.length > 1 ? 7 : 6;
+      o += '<g class="mk" data-n="' + n + '"><circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="22" fill="transparent"/>' + (sel ? '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="' + (r + 6) + '" fill="none" stroke="var(--fg)" stroke-width="3"/>' : "") +
+        '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="' + r + '" fill="' + col + '" stroke="' + (rs.length > 1 && !hub ? "var(--fg)" : "var(--surface)") + '" stroke-width="2"/></g>';
+      if (showLbl || sel || hub) o += '<text class="lbl' + (sel ? " sel" : "") + '" x="' + (x + r + 5).toFixed(1) + '" y="' + (y + 4).toFixed(1) + '">' + n + "</text>";
+    });
+    if (MAP.me) { const x = X(MAP.me[1]), y = Y(MAP.me[0]); o += '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="16" fill="#1a73e8" fill-opacity=".2"/><circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="7" fill="#1a73e8" stroke="#fff" stroke-width="3"/>'; }
+    msvg.innerHTML = o;
+  }
+  function selectStop(n, center) {
+    MAP.sel = n;
+    const { h } = mapSize();
+    if (POS[n]) { if (center) MAP.z = Math.max(MAP.z, 15.5); const px = wx(POS[n][1], MAP.z), py = wy(POS[n][0], MAP.z); MAP.cx = center ? px : MAP.cx; MAP.cy = center ? py + h * 0.2 : MAP.cy; if (!center) { const sy = py - MAP.cy + h / 2; if (sy > h * 0.42) MAP.cy += sy - h * 0.3; } }
+    drawMap(); renderSheet(n);
+  }
+  const sheetEl = $("#mapsheet");
+  function showSheet(html) { sheetEl.hidden = false; sheetEl.innerHTML = '<button type="button" class="x" aria-label="閉じる">×</button>' + html; sheetEl.querySelector(".x").onclick = closeSheet; try { mbox.scrollIntoView({ block: "start", behavior: "smooth" }); } catch (e) {} return sheetEl; }
+  function closeSheet() { sheetEl.hidden = true; MAP.sel = null; drawMap(); }
+  function renderSheet(n) {
+    const box = sheetEl; const rs = [...(STOP_ROUTES[n] || [])];
+    const deps = N.departures(n); const d0 = new Date(); const nowM = d0.getHours() * 60 + d0.getMinutes();
+    const open = !off(ymd(d0)); let list = open ? deps.filter((d) => d.t >= nowM) : deps; let note = "";
+    if (open && !list.length) { list = deps; note = "今日の運行は終わっています。次の運行日の時刻を表示しています。"; } else if (!open) note = "今日は運休です。運行日の時刻を表示しています。";
+    showSheet('<h2 style="padding-right:40px">' + n + '</h2><div>' + rs.map((r) => '<span class="chip ' + ROUTES[r][0] + '">' + ROUTES[r][1] + "</span> ").join("") + "</div>" +
+      '<div class="acts"><button type="button" data-a="from">ここから出発</button><button type="button" data-a="to">ここへ到着</button><button type="button" data-a="tt">時刻表を見る</button></div>' +
+      (note ? '<p class="fine" style="margin:6px 0">' + note + "</p>" : "") +
+      (list.length ? list.slice(0, 6).map((d) => '<div class="dep"><span class="t">' + N.fmt(d.t) + '</span><span class="chip ' + ROUTES[d.route][0] + '">' + ROUTES[d.route][1] + '</span><span class="sub">' + d.last + "行き</span></div>").join("") : '<span class="sub">この停留所の時刻はありません。</span>'));
+    box.querySelector(".acts").onclick = (e) => { const b = e.target.closest("button"); if (!b) return;
+      if (b.dataset.a === "from") { fromEl.value = n; showTab("search"); run(); }
+      else if (b.dataset.a === "to") { toEl.value = n; showTab("search"); run(); }
+      else { ttEl.value = n; renderTT(); showTab("tt"); } };
+  }
+  function initMap() {
+    if (MAP.inited) { drawMap(); return; } MAP.inited = true;
+    $("#maplegend").innerHTML = Object.keys(ROUTES).map((r) => '<button type="button" aria-pressed="true" data-r="' + r + '"><span class="dot" style="background:' + RCOL[r] + '"></span>' + ROUTES[r][1] + "</button>").join("");
+    $("#maplegend").onclick = (e) => { const b = e.target.closest("button"); if (!b) return; const r = b.dataset.r, on = b.getAttribute("aria-pressed") === "true"; b.setAttribute("aria-pressed", String(!on)); on ? MAP.hidden.add(r) : MAP.hidden.delete(r); drawMap(); };
+    const miss = N.STOP_NAMES.filter((n) => !POS[n]);
+    $("#mapfine").textContent = "位置を撮影・確認できた停留所は" + names.length + "か所です" + (miss.length ? "(未取得:" + miss.join("、") + ")" : "") + "。点の位置は、スマホのGPSで測った数m〜十数mの誤差を含みます。";
+    suggest($("#mapstop"), $("#sg-map"), (n) => { $("#mapstop").value = n; if (POS[n]) selectStop(n, true); else renderSheet(n); });
+    if (window.ResizeObserver) { let lw = 0; new ResizeObserver(() => { const w = mbox.getBoundingClientRect().width; if (w && Math.abs(w - lw) > 1) { lw = w; if (!$("#p-map").hidden) drawMap(); } }).observe(mbox); }
+    $("#zin").onclick = () => setZoom(MAP.z + 1); $("#zout").onclick = () => setZoom(MAP.z - 1); $("#zfit").onclick = fit;
+    // ドラッグ・ピンチ・ホイール
+    const ptr = new Map(); let moved = 0, pinch = 0;
+    mbox.addEventListener("pointerdown", (e) => { if (e.target.closest(".mapctl, .sheet")) return; mbox.setPointerCapture(e.pointerId); ptr.set(e.pointerId, { x: e.clientX, y: e.clientY }); moved = 0; if (ptr.size === 2) { const [a, b] = [...ptr.values()]; pinch = Math.hypot(a.x - b.x, a.y - b.y); } });
+    mbox.addEventListener("pointermove", (e) => {
+      const p = ptr.get(e.pointerId); if (!p) return; const dx = e.clientX - p.x, dy = e.clientY - p.y; moved += Math.abs(dx) + Math.abs(dy);
+      if (ptr.size === 1) { MAP.cx -= dx; MAP.cy -= dy; p.x = e.clientX; p.y = e.clientY; drawMap(); }
+      else { p.x = e.clientX; p.y = e.clientY; const [a, b] = [...ptr.values()]; const d = Math.hypot(a.x - b.x, a.y - b.y); if (pinch) { const r = mbox.getBoundingClientRect(); setZoom(MAP.z + Math.log2(d / pinch), (a.x + b.x) / 2 - r.left, (a.y + b.y) / 2 - r.top); } pinch = d; moved += 20; }
+    });
+    const up = (e) => { const was = ptr.has(e.pointerId); ptr.delete(e.pointerId); pinch = 0;
+      if (was && moved < 8 && ptr.size === 0) { const g = document.elementFromPoint(e.clientX, e.clientY); const mk = g && g.closest && g.closest(".mk"); if (mk) selectStop(mk.dataset.n, false); } };
+    mbox.addEventListener("pointerup", up); mbox.addEventListener("pointercancel", (e) => { ptr.delete(e.pointerId); pinch = 0; });
+    mbox.addEventListener("wheel", (e) => { e.preventDefault(); const r = mbox.getBoundingClientRect(); setZoom(MAP.z - Math.sign(e.deltaY) * 0.5, e.clientX - r.left, e.clientY - r.top); }, { passive: false });
+    $("#mapgps").onclick = () => {
+      const btn = $("#mapgps"); const say = (t) => { showSheet('<p style="margin:0;padding-right:40px">' + t + "</p>"); };
+      if (!navigator.geolocation) { say("この画面では現在地を取得できません(位置情報が許可されていない環境です)。停留所名で探してください。"); return; }
+      btn.disabled = true; btn.textContent = "現在地を確認中…";
+      try { navigator.geolocation.getCurrentPosition((p) => {
+        btn.disabled = false; btn.textContent = "現在地"; MAP.me = [p.coords.latitude, p.coords.longitude];
+        let best = null, bd = 1e9; names.forEach((n) => { const d = Math.hypot((POS[n][0] - MAP.me[0]) * 111000, (POS[n][1] - MAP.me[1]) * 91000); if (d < bd) { bd = d; best = n; } });
+        if (bd > 8000) { say("現在地が長井市のバス路線から離れています(約" + (bd / 1000).toFixed(1) + "km)。"); drawMap(); return; }
+        MAP.z = 16; MAP.cx = wx(MAP.me[1], 16); MAP.cy = wy(MAP.me[0], 16); selectStop(best, false);
+        sheetEl.querySelector("h2").insertAdjacentHTML("afterend", '<p class="fine" style="margin:0 0 4px">いちばん近い停留所です(約' + Math.round(bd) + "m)。</p>");
+      }, () => { btn.disabled = false; btn.textContent = "現在地"; say("現在地を取得できませんでした。この画面(アプリ内の表示)では、位置情報が許可されないことがあります。停留所名で探してください。"); }, { enableHighAccuracy: true, timeout: 10000 }); }
+      catch (e) { btn.disabled = false; btn.textContent = "現在地"; say("現在地を取得できませんでした。"); }
+    };
+    window.addEventListener("resize", () => { if (!$("#p-map").hidden) drawMap(); });
+    fit();
+    setTimeout(() => { if (!MAP.tileOK) $("#mapnote").textContent = "背景地図は表示できません(点と線のみ)"; }, 8000);
+  }
+
+  // ---- 配線 ----
+  suggest(fromEl, $("#sg-from"), () => toEl.focus());
+  suggest(toEl, $("#sg-to"), () => run());
+  suggest(ttEl, $("#sg-tt"), () => renderTT());
+  ttEl.addEventListener("input", renderTT);
+  $("#form").addEventListener("submit", (e) => { e.preventDefault(); run(); });
+  $("#swap").onclick = () => { const t = fromEl.value; fromEl.value = toEl.value; toEl.value = t; run(); };
+  const setMode = (m) => { state.mode = m; $("#m-dep").setAttribute("aria-pressed", m === "dep"); $("#m-arr").setAttribute("aria-pressed", m === "arr"); run(); };
+  $("#m-dep").onclick = () => setMode("dep"); $("#m-arr").onclick = () => setMode("arr");
+  dateEl.addEventListener("change", run); timeEl.addEventListener("change", run);
+  $("#quick").innerHTML = ["長井市役所・長井駅前", "ヤマザワ前", "置賜総合病院前"].map((n) => '<button type="button" data-n="' + n + '">' + n + "</button>").join("");
+  $("#quick").onclick = (e) => { const b = e.target.closest("button"); if (!b) return; const t = (document.activeElement === toEl) ? toEl : (fromEl.value ? toEl : fromEl); t.value = b.dataset.n; run(); };
+  $("#ttfrom").onclick = () => { fromEl.value = ttEl.value; showTab("search"); run(); };
+  ttEl.value = "長井市役所・長井駅前";
+
+  function showTab(id) {
+    ["search", "tt", "map", "info"].forEach((k) => { $("#p-" + k).hidden = k !== id; $("#tab-" + k).setAttribute("aria-selected", k === id); });
+    store.set("nagai.tab", id);
+    if (id === "map") initMap();
+  }
+  ["search", "tt", "map", "info"].forEach((k) => ($("#tab-" + k).onclick = () => showTab(k)));
+  $("#themebtn").onclick = () => {
+    const r = document.documentElement, dark = r.dataset.theme ? r.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+    r.dataset.theme = dark ? "light" : "dark";
+  };
+  renderTT(); run();
+})();
+</script>
+
+</body></html>
