@@ -118,6 +118,16 @@ details.via summary { cursor: pointer; color: var(--muted); font-size: .85rem; m
 details.via ol { margin: 4px 0 0; padding-left: 1.4em; color: var(--muted); font-size: .85rem; columns: 2 180px; }
 .xfer { display: flex; align-items: center; gap: 8px; padding: 6px 0 6px 18px; font-size: .88rem; color: var(--muted); border-left: 2px dotted var(--line); margin-left: 2px; flex-wrap: wrap; }
 .xfer b { color: var(--fg); }
+.walkalt { margin: 4px 0 8px 20px; font-size: .88rem; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; background: var(--card); }
+.walkalt summary { cursor: pointer; font-weight: 700; color: var(--fg); }
+.walkalt ol { margin: 8px 0 2px; padding: 0; list-style: none; display: grid; gap: 10px; }
+.walkalt li { border-top: 1px dashed var(--line); padding-top: 8px; line-height: 1.6; }
+.walkalt li:first-child { border-top: 0; padding-top: 0; }
+.walkalt .gain { font-weight: 700; color: var(--hub-blue); }
+.walkalt .walkline { color: var(--muted); }
+.walkalt button { font: inherit; font-size: .82rem; margin-top: 4px; padding: 4px 10px; border-radius: 6px; border: 1px solid var(--line); background: transparent; color: var(--fg); }
+.walkalt small { display: block; margin-top: 6px; color: var(--muted); }
+
 .empty { padding: 18px; text-align: left; background: var(--surface); border: 1px dashed var(--line); border-radius: 10px; color: var(--muted); }
 .fine { color: var(--muted); font-size: .82rem; margin: 10px 2px 0; }
 
@@ -568,7 +578,7 @@ details.via ol { margin: 4px 0 0; padding-left: 1.4em; color: var(--muted); font
     return out.map((legs) => {
       const f = legs[0], l = legs[legs.length - 1];
       return { legs: legs.map((x) => ({
-          route: x.tr.route, no: x.tr.no, label: x.tr.label,
+          tid: x.tr.id, route: x.tr.route, no: x.tr.no, label: x.tr.label,
           from: x.tr.stops[x.i].n, to: x.tr.stops[x.j].n,
           dep: x.tr.stops[x.i].t, arr: x.tr.stops[x.j].t,
           stops: x.j - x.i, fare: legFare(x.tr, x.i, x.j),
@@ -596,7 +606,7 @@ details.via ol { margin: 4px 0 0; padding-left: 1.4em; color: var(--muted); font
       .map(([tr, i]) => ({ route: tr.route, no: tr.no, label: tr.label, t: tr.stops[i].t, last: tr.stops[tr.stops.length - 1].n }))
       .sort((a, b) => a.t - b.t);
   }
-  const api = { TRIPS, STOP_NAMES, HUBS, search, departures, offReason, fmt, hm, enumerate };
+  const api = { fare: legFare, TRIPS, STOP_NAMES, HUBS, search, departures, offReason, fmt, hm, enumerate };
   root.NAGAI = api;
   if (typeof module !== "undefined") module.exports = api;
 })(typeof window !== "undefined" ? window : globalThis);
@@ -664,6 +674,85 @@ details.via ol { margin: 4px 0 0; padding-left: 1.4em; color: var(--muted); font
   // ---- 検索結果 ----
   const dur = (m) => (m >= 60 ? Math.floor(m / 60) + "時間" : "") + (m % 60 ? (m % 60) + "分" : "");
   const hubCls = (n) => (n === "長井市役所・長井駅前" ? "red" : n === "ヤマザワ前" ? "blue" : "");
+
+  // ---- 待ち時間が長いとき: 歩いて行ける近くのバス停から乗る案 ----
+  const WALK_MAX_MIN = 7, WALK_DETOUR = 1.3, WALK_SPEED = 80, LONG_WAIT = 15, MIN_GAIN = 3;
+  let NEARCACHE = null, BYSTOP2 = null;
+  function nearMap() {
+    if (NEARCACHE) return NEARCACHE;
+    const P = window.NAGAI_POS || {}, nm = Object.keys(P), rad2 = Math.PI / 180; NEARCACHE = {};
+    const gd2 = (a, b) => { const dp = (b[0] - a[0]) * rad2, dl = (b[1] - a[1]) * rad2; const h = Math.sin(dp / 2) ** 2 + Math.cos(a[0] * rad2) * Math.cos(b[0] * rad2) * Math.sin(dl / 2) ** 2; return 12742000 * Math.asin(Math.sqrt(h)); };
+    nm.forEach((a) => { NEARCACHE[a] = []; nm.forEach((b) => { if (a === b) return; const d = gd2(P[a], P[b]), w = Math.ceil(d * WALK_DETOUR / WALK_SPEED); if (w <= WALK_MAX_MIN) NEARCACHE[a].push({ n: b, d: Math.round(d / 10) * 10, w: Math.max(1, w) }); }); });
+    return NEARCACHE;
+  }
+  function byStop2() {
+    if (BYSTOP2) return BYSTOP2; BYSTOP2 = {};
+    N.TRIPS.forEach((tr) => tr.stops.forEach((s, i) => { if (i < tr.stops.length - 1) (BYSTOP2[s.n] = BYSTOP2[s.n] || []).push([tr, i]); }));
+    return BYSTOP2;
+  }
+  // 乗換 k(legs[k-1] → legs[k])で待ちが長いとき、近くの停留所まで歩いて乗る案を返す
+  function walkAlts(r, k) {
+    const prev = r.legs[k - 1], l = r.legs[k];
+    if (l.dep - prev.arr < LONG_WAIT) return [];
+    const tr1 = N.TRIPS[prev.tid]; if (!tr1) return [];
+    const i0 = tr1.stops.findIndex((s) => s.n === prev.from && s.t === prev.dep); if (i0 < 0) return [];
+    let j0 = -1; for (let q = i0 + 1; q < tr1.stops.length; q++) if (tr1.stops[q].n === prev.to && tr1.stops[q].t === prev.arr) { j0 = q; break; }
+    if (j0 < 0) return [];
+    const NM = nearMap(), BS = byStop2(), best = {};
+    for (let m = i0 + 1; m <= j0; m++) {
+      const A = tr1.stops[m];
+      (NM[A.n] || []).forEach((c) => {
+        (BS[c.n] || []).forEach(([tr2, i2]) => {
+          if (tr2.id === tr1.id) return;
+          const dep = tr2.stops[i2].t; if (dep < A.t + c.w + 1) return;
+          let jj = -1; for (let q = i2 + 1; q < tr2.stops.length; q++) if (tr2.stops[q].n === l.to) { jj = q; break; }
+          if (jj < 0) return;
+          const arr = tr2.stops[jj].t; if (arr > l.arr - MIN_GAIN) return;
+          const cand = { off: A.n, offT: A.t, walk: c.w, dist: c.d, on: c.n, dep, arr, gain: l.arr - arr, route: tr2.route, no: tr2.no, label: tr2.label, to: l.to, via: tr2.stops.slice(i2 + 1, jj).map((s) => s.n), fare: N.fare(tr1, i0, m) + N.fare(tr2, i2, jj) + 0 };
+          const key = tr2.id, o = best[key];
+          if (!o || cand.walk < o.walk || (cand.walk === o.walk && cand.offT > o.offT)) best[key] = cand;
+        });
+      });
+    }
+    return Object.values(best).sort((a, b) => a.arr - b.arr || a.walk - b.walk).slice(0, 3);
+  }
+  function walkHtml(r, k) {
+    const alts = walkAlts(r, k); if (!alts.length) return "";
+    const g = alts[0].gain;
+    let h = '<details class="walkalt"><summary>歩いて近くのバス停から乗る案(最大' + g + '分早く着きます)</summary><ol>';
+    alts.forEach((a) => {
+      const cls = (ROUTES[a.route] || ["", ""])[0], nmR = (ROUTES[a.route] || ["", a.route])[1];
+      h += "<li><div><b>" + a.off + "</b>で降りる(" + N.fmt(a.offT) + "着)</div>";
+      h += '<div class="walkline">→ 徒歩 約' + a.walk + "分(約" + a.dist + "m)</div>";
+      h += "<div><b>" + a.on + "</b> " + N.fmt(a.dep) + '発 <span class="chip ' + cls + '">' + nmR + "</span> " + a.no + "便 ・ " + a.label + "</div>";
+      h += "<div>→ <b>" + a.to + "</b> " + N.fmt(a.arr) + '着 <span class="gain">(元の案より' + a.gain + "分早い)</span></div>";
+      h += '<button type="button" data-walkmap="' + a.on + '">乗り場を地図で見る</button></li>';
+    });
+    return h + "</ol><small>徒歩は、直線距離から計算した目安です(時速約4.8km、道のりは直線の約1.3倍とみなしています)。信号や坂、天気で前後します。バスは1分でも余裕を見て乗り場に着くようにしてください。運賃は2区間の合計の目安です。</small></details>";
+  }
+
+  // 出発側: 最初のバスまでの待ちが長いとき、歩いて行ける近くの停留所から乗る案
+  function walkFromHtml(from, to, time, res) {
+    if (state.mode !== "dep" || !res.length) return "";
+    const base = res.reduce((m, r) => Math.min(m, r.arr), 1e9), wait0 = res[0].dep - time;
+    if (wait0 < LONG_WAIT) return "";
+    const out = [];
+    (nearMap()[from] || []).forEach((c) => {
+      const t0 = time + c.w + 1, rs = N.search(c.n, to, t0, "dep"); if (!rs.length) return;
+      const b = rs.reduce((m, r) => (r.arr < m.arr || (r.arr === m.arr && r.dep > m.dep) ? r : m));
+      if (b.arr <= base - MIN_GAIN) out.push({ c, r: b, gain: base - b.arr });
+    });
+    out.sort((a, b) => a.r.arr - b.r.arr || a.c.w - b.c.w);
+    if (!out.length) return "";
+    let h = '<details class="walkalt" style="margin-left:0;margin-bottom:12px"><summary>' + from + "からのバスは約" + wait0 + "分待ちです。歩いて近くのバス停から乗る案(最大" + out[0].gain + "分早く着きます)</summary><ol>";
+    out.slice(0, 3).forEach((o) => {
+      const f = o.r.legs[0], cls = (ROUTES[f.route] || [""])[0], nmR = (ROUTES[f.route] || ["", f.route])[1];
+      h += "<li><div>" + from + 'から<span class="walkline"> 徒歩 約' + o.c.w + "分(約" + o.c.d + "m)</span> → <b>" + o.c.n + "</b></div>";
+      h += "<div>" + N.fmt(o.r.dep) + '発 <span class="chip ' + cls + '">' + nmR + "</span> " + f.no + "便" + (o.r.legs.length > 1 ? "(乗換" + (o.r.legs.length - 1) + "回)" : "") + " → <b>" + to + "</b> " + N.fmt(o.r.arr) + '着 <span class="gain">(元の案より' + o.gain + "分早い)</span></div>";
+      h += '<button type="button" data-walkfrom="' + o.c.n + '" data-wt="' + N.fmt(time + o.c.w + 1) + '">ここから検索する</button> <button type="button" data-walkmap="' + o.c.n + '">乗り場を地図で見る</button></li>';
+    });
+    return h + "</ol><small>徒歩は、直線距離から計算した目安です(時速約4.8km、道のりは直線の約1.3倍)。到着の余裕として1分を見込んでいます。</small></details>";
+  }
   function card(r, i) {
     const trans = r.legs.length - 1;
     let html = '<article class="card"><div class="sum"><div class="times">' + N.fmt(r.dep) + " → " + N.fmt(r.arr) + "</div>";
@@ -672,7 +761,7 @@ details.via ol { margin: 4px 0 0; padding-left: 1.4em; color: var(--muted); font
     r.legs.forEach((l, k) => {
       if (k) {
         const prev = r.legs[k - 1], wait = l.dep - prev.arr;
-        html += '<div class="xfer"><span class="hub ' + hubCls(l.from) + '">乗換</span><b>' + l.from + "</b><span>待ち " + (wait ? wait + "分" : "なし") + (wait <= 10 ? "(隣に停まっている車両へ)" : "") + "</span></div>";
+        html += '<div class="xfer"><span class="hub ' + hubCls(l.from) + '">乗換</span><b>' + l.from + "</b><span>待ち " + (wait ? wait + "分" : "なし") + (wait <= 10 ? "(隣に停まっている車両へ)" : "") + "</span></div>" + walkHtml(r, k);
       }
       const [cls, name] = ROUTES[l.route];
       html += '<div class="leg ' + cls + '"><div class="bar"></div><div class="body"><span class="chip">' + name + "</span> <span class=\"sub\">" + l.no + "便 ・ " + l.label + " ・ " + l.fare + "円</span>";
@@ -682,6 +771,8 @@ details.via ol { margin: 4px 0 0; padding-left: 1.4em; color: var(--muted); font
     });
     return html + "</div></article>";
   }
+  document.addEventListener("click", (e) => { const w = e.target.closest && e.target.closest("[data-walkfrom]"); if (w) { fromEl.value = w.dataset.walkfrom; timeEl.value = w.dataset.wt; run(); return; }
+    const b = e.target.closest && e.target.closest("[data-walkmap]"); if (!b) return; showTab("map"); selectStop(b.dataset.walkmap, true); });
   function run() {
     const from = fromEl.value.trim(), to = toEl.value.trim(), box = $("#results"), nt = $("#notice");
     store.set("nagai.from", from); store.set("nagai.to", to);
@@ -702,7 +793,7 @@ details.via ol { margin: 4px 0 0; padding-left: 1.4em; color: var(--muted); font
       box.innerHTML = '<div class="empty">この条件では見つかりませんでした。時刻を早めるか、別の日付にすると見つかることがあります。乗換は、長井市役所・長井駅前とヤマザワ前の2か所だけを探しています。</div>';
       return;
     }
-    box.innerHTML = res.map(card).join("");
+    box.innerHTML = walkFromHtml(from, to, N.hm(timeEl.value || "00:00"), res) + res.map(card).join("");
   }
 
   // ---- 時刻表 ----
